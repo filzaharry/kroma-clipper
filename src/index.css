@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-bg-base: #111315;
+  --color-surface-base: #191C20;
+  --color-surface-elevated: #20242A;
+  --color-surface-hover: #262B32;
+  --color-border-subtle: #292E34;
+  --color-border-muted: #383F47;
+  --color-text-primary: #E7E9EC;
+  --color-text-secondary: #9299A3;
+  --color-text-tertiary: #626871;
+  --color-accent-lime: #B6F36B;
+  --color-accent-hover: #A5E456;
+  --color-accent-muted: rgba(182, 243, 107, 0.12);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #111315;
+  color: #E7E9EC;
+  overflow-x: hidden;
+}
+
+/* Tabular figures for timecodes, metrics, and waveforms */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom precision scrollbar for video editing timeline and inspectors */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111315;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #292E34;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #383F47;
+}

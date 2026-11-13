@@ -1,0 +1,6 @@
+{
+  "name": "Kroma Clip - Professional Video Highlight SaaS",
+  "description": "Professional web-based video clipping and highlight detection platform inspired by DaVinci Resolve, Linear, and Frame.io.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
