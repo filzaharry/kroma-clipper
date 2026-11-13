@@ -44,3 +44,4 @@ export const WORKSPACE_VIEWS = [
 ] as const;
 
 export type WorkspaceViewId = (typeof WORKSPACE_VIEWS)[number]['id'];
+

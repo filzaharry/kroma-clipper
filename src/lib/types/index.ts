@@ -104,3 +104,4 @@ export interface ScheduledPost {
   aspectRatio: AspectRatio;
   durationSeconds: number;
 }
+

@@ -275,3 +275,4 @@ export function generateMockWaveform(pointsCount: number = 100, seed: number = 4
   }
   return points;
 }
+

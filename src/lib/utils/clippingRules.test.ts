@@ -86,3 +86,4 @@ test('evaluateHighlightCandidates identifies clips matching duration bounds and 
   assert.ok(results[0].duration >= 20 && results[0].duration <= 55, 'Duration must match rule range');
   assert.ok(results[0].score > 50, 'Highlight should have a strong score');
 });
+
