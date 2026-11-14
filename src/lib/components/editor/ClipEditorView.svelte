@@ -34,7 +34,9 @@
   let showSafeZones = $state(true);
   let showGrid = $state(false);
   let activeTab = $state<'captions' | 'framing' | 'transcript'>('captions');
-  let highlightColor = $state('#B6F36B');
+  let highlightColor = $derived(
+    clip.captionHighlightColor || workspace.rules.captionHighlightColor || '#B6F36B'
+  );
   let currentTime = $state(0);
   let isPlaying = $state(false);
   let isDownloading = $state(false);
@@ -344,7 +346,10 @@
                       ? 'scale-125 ring-2 ring-[#E7E9EC] border-transparent'
                       : 'border-black/40 hover:scale-110'}"
                     style="background-color: {color};"
-                    onclick={() => (highlightColor = color)}
+                    onclick={() => {
+                      workspace.updateClip({ ...clip, captionHighlightColor: color });
+                      workspace.rules.captionHighlightColor = color;
+                    }}
                     aria-label="Pilih warna sorotan {color}"
                   ></button>
                 {/each}

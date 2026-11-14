@@ -88,6 +88,7 @@ export interface ClipCandidate {
   panOffset: number; // -50 to 50 percent
   zoomLevel: number; // 1.0 to 2.0
   captionPreset: CaptionStylePreset;
+  captionHighlightColor?: string;
   captionPosition?: CaptionPosition;
   captionMaxLines?: CaptionMaxLines;
   framingLayout?: FramingLayout;

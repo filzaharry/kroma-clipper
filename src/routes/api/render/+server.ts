@@ -20,6 +20,8 @@ export const POST: RequestHandler = async ({ request }) => {
       captionPosition = 'bottom',
       captionMaxLines = 2,
       captionHighlightColor = '#B6F36B',
+      panOffset = 0,
+      zoomLevel = 1.0,
       captions = [],
     } = data;
 
@@ -73,6 +75,10 @@ export const POST: RequestHandler = async ({ request }) => {
       String(captionMaxLines),
       '--highlight-color',
       captionHighlightColor,
+      '--pan-offset',
+      String(panOffset),
+      '--zoom-level',
+      String(zoomLevel),
       '--captions-json',
       JSON.stringify(captions),
     ];
