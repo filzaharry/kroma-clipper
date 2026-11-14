@@ -54,10 +54,14 @@
   let watermarkUploadError = $state<string | null>(null);
 
   // BGM YouTube state
-  let bgmInputUrl = $state(clip.bgm?.youtubeUrl || '');
+  let bgmInputUrl = $state('');
   let isLoadingBgm = $state(false);
   let bgmError = $state<string | null>(null);
   let bgmSuccessMsg = $state<string | null>(null);
+
+  $effect(() => {
+    bgmInputUrl = clip.bgm?.youtubeUrl || '';
+  });
 
   $effect(() => {
     currentTime = clip.startTime;

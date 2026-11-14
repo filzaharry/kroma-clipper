@@ -50,7 +50,12 @@ export const POST: RequestHandler = async ({ request }) => {
     const outputFilename = `clip_${Date.now()}_${cleanSafeTitle}_${aspectRatio.replace(':', 'x')}.mp4`;
     const outputPath = path.join(exportsDir, outputFilename);
 
-    const scriptPath = path.resolve(process.cwd(), 'backend/render_engine.py');
+    const possibleScriptPaths = [
+      path.resolve(process.cwd(), '../backend/render_engine.py'),
+      path.resolve(process.cwd(), 'backend/render_engine.py'),
+      path.resolve(process.cwd(), '../../backend/render_engine.py'),
+    ];
+    const scriptPath = possibleScriptPaths.find((p) => fs.existsSync(p)) || possibleScriptPaths[0];
 
     // Jalankan mesin render Python FFmpeg
     const args = [

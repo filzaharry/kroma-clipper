@@ -349,7 +349,6 @@
               </button>
             </div>
           </div>
-        </div>
       {/each}
     </div>
   {/if}
