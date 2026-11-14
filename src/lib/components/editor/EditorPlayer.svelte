@@ -119,10 +119,6 @@
     return allWords.slice(startIdx, startIdx + targetWordCount);
   });
 
-  const activeWord = $derived(
-    currentSegment?.words?.find((w) => effectiveTime >= w.start && effectiveTime <= w.end) || null
-  );
-
   // Ambil file MP4 potongan segmen bersih tanpa komponen YouTube via backend
   function fetchPreviewVideo() {
     const vId = youtubeVideoId;
@@ -396,11 +392,6 @@
         >
           Reset
         </button>
-      {/if}
-      {#if activeWord}
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-[#B6F36B]/15 text-[#B6F36B] text-[10px] font-bold border border-[#B6F36B]/30 hidden sm:inline-block">
-          "{activeWord.word}"
-        </span>
       {/if}
     </div>
 
