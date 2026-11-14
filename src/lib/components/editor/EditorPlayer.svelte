@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ClipCandidate } from '#lib/types';
+  import { workspace } from '#lib/state/workspace.svelte';
   import { formatTimecode } from '#lib/utils/clippingRules';
   import { onDestroy, onMount } from 'svelte';
 
@@ -93,10 +94,19 @@
     >
       <!-- Speaker Silhouette / Studio Light Backdrop -->
       <div class="relative w-full h-full flex flex-col items-center justify-center">
+        {#if workspace.activeVideo?.thumbnailUrl}
+          <img
+            src={workspace.activeVideo.thumbnailUrl}
+            alt="YouTube Video Frame"
+            class="absolute inset-0 w-full h-full object-cover opacity-70 filter brightness-90"
+          />
+          <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/60"></div>
+        {/if}
+
         <div
-          class="w-24 h-24 rounded-full bg-[#20242A] border border-[#292E34] flex items-center justify-center text-[#B6F36B]/60 shadow-inner"
+          class="w-20 h-20 rounded-full bg-[#20242A]/90 border border-[#292E34] flex items-center justify-center text-[#B6F36B]/60 shadow-xl relative z-10 backdrop-blur-xs"
         >
-          <div class="w-14 h-14 rounded-full bg-[#292E34]/80 flex items-center justify-center">
+          <div class="w-12 h-12 rounded-full bg-[#292E34]/80 flex items-center justify-center">
             <span class="text-xs font-mono text-[#E7E9EC] font-semibold">
               {clip.speaker
                 .split(' ')
@@ -106,15 +116,15 @@
           </div>
         </div>
 
-        <div class="mt-3 text-center">
-          <div class="text-xs font-semibold text-[#E7E9EC]">{clip.speaker}</div>
-          <div class="text-[10px] text-[#626871] font-mono">
+        <div class="mt-2 text-center relative z-10">
+          <div class="text-xs font-semibold text-[#E7E9EC] drop-shadow-md">{clip.speaker}</div>
+          <div class="text-[10px] text-[#9299A3] font-mono drop-shadow-md">
             PCM STEREO · {formatTimecode(currentTime, true)}
           </div>
         </div>
 
         <!-- Simulated Audio Visualizer Arc -->
-        <div class="absolute bottom-6 flex items-end gap-1 opacity-60">
+        <div class="absolute bottom-6 flex items-end gap-1 opacity-70 z-10">
           {#each VISUALIZER_BARS as bar, i (i)}
             {@const heightFactor = isPlaying ? ((i * 17 + Math.floor(currentTime * 10)) % 10) / 10 : 0.2}
             <div

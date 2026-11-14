@@ -3,7 +3,7 @@
   import { page } from '$app/state';
   import { formatDuration } from '#lib/utils/clippingRules';
   import {
-    Film,
+    SquarePlay,
     SlidersHorizontal,
     Cpu,
     Layers,
@@ -18,7 +18,7 @@
   const pathname = $derived(page.url.pathname);
 
   const navItems = $derived([
-    { path: '/library', label: '1. Media Ingest', icon: Film, count: null },
+    { path: '/library', label: '1. YouTube Ingest', icon: SquarePlay, count: null },
     { path: '/rules', label: '2. Rule Config', icon: SlidersHorizontal, count: null },
     { path: '/analysis', label: '3. Heuristic Engine', icon: Cpu, count: null },
     { path: '/candidates', label: '4. Clip Candidates', icon: Layers, count: workspace.candidates.length || null },

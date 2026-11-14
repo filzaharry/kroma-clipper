@@ -7,7 +7,7 @@
   const pathname = $derived(page.url.pathname);
 
   const stageLabel = $derived.by(() => {
-    if (pathname.startsWith('/library')) return '1. Media Ingest';
+    if (pathname.startsWith('/library')) return '1. YouTube Ingest';
     if (pathname.startsWith('/rules')) return '2. Clipping Rules';
     if (pathname.startsWith('/analysis')) return '3. Heuristic Engine';
     if (pathname.startsWith('/editor')) return '5. Clip Editor (NLE)';
