@@ -21,8 +21,7 @@
     { path: '/analysis', label: '2. Analisis AI', icon: Cpu, count: null },
     { path: '/candidates', label: '3. Pilihan Klip', icon: Layers, count: workspace.candidates.length || null },
     { path: '/editor', label: '4. Editor Klip (NLE)', icon: Scissors, count: null },
-    { path: '/export', label: '5. Antrean Render', icon: Download, count: workspace.completedRenderCount || null },
-    { path: '/publish', label: '6. Jadwal Medsos', icon: Calendar, count: null },
+    { path: '/publish', label: '5. Jadwal Medsos', icon: Calendar, count: null },
   ]);
 
   function isItemActive(itemPath: string) {

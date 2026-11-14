@@ -22,6 +22,9 @@ export const POST: RequestHandler = async ({ request }) => {
       captionHighlightColor = '#B6F36B',
       panOffset = 0,
       zoomLevel = 1.0,
+      resolution = '1080p',
+      fps = 30,
+      bitrate = 14,
       watermark = null,
       bgm = null,
       captions = [],
@@ -86,6 +89,12 @@ export const POST: RequestHandler = async ({ request }) => {
       String(panOffset),
       '--zoom-level',
       String(zoomLevel),
+      '--resolution',
+      String(resolution || '1080p'),
+      '--fps',
+      String(fps || 30),
+      '--bitrate',
+      String(bitrate || 14),
     ];
 
     // Watermark Logo

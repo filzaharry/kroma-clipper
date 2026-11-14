@@ -38,8 +38,7 @@ export const WORKSPACE_VIEWS = [
   { id: 'analysis', label: '2. Heuristic Engine', path: '/analysis', icon: 'Cpu' },
   { id: 'candidates', label: '3. Clip Candidates', path: '/candidates', icon: 'Layers' },
   { id: 'editor', label: '4. Clip Editor (NLE)', path: '/editor', icon: 'Scissors' },
-  { id: 'export', label: '5. Render Queue', path: '/export', icon: 'Download' },
-  { id: 'publish', label: '6. Social Schedule', path: '/publish', icon: 'Calendar' },
+  { id: 'publish', label: '5. Social Schedule', path: '/publish', icon: 'Calendar' },
 ] as const;
 
 export type WorkspaceViewId = (typeof WORKSPACE_VIEWS)[number]['id'];

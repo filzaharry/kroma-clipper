@@ -217,6 +217,9 @@ export class WorkspaceStore {
           captionHighlightColor: clip?.captionHighlightColor || this.rules.captionHighlightColor || '#B6F36B',
           panOffset: clip?.panOffset || 0,
           zoomLevel: clip?.zoomLevel || 1.0,
+          resolution: config.resolution || '1080p',
+          fps: config.framerate || 30,
+          bitrate: config.bitrateMbps || 14,
           watermark: clip?.watermark,
           bgm: clip?.bgm,
           captions: clip?.captions || [],
@@ -273,13 +276,23 @@ export class WorkspaceStore {
     }
   }
 
-  async quickDownloadClip(clip: ClipCandidate) {
+  async quickDownloadClip(
+    clip: ClipCandidate,
+    options?: {
+      resolution?: string;
+      fps?: number;
+      bitrate?: number;
+    }
+  ) {
     this.selectClip(clip);
     return await this.startRender(
       {
         clipId: clip.id,
         clipTitle: clip.title,
         aspectRatio: clip.aspectRatio,
+        resolution: options?.resolution || '1080p',
+        framerate: options?.fps || 30,
+        bitrateMbps: options?.bitrate || 14,
       },
       clip
     );

@@ -200,6 +200,9 @@ def render_clip(
     watermark_opacity: float = 0.85,
     bgm_audio: Optional[str] = None,
     bgm_volume: float = 0.15,
+    resolution: str = "1080p",
+    fps: int = 30,
+    bitrate: int = 14,
     captions: Optional[List[Dict]] = None
 ) -> Dict:
     duration = end_time - start_time
@@ -323,38 +326,46 @@ def render_clip(
         ffmpeg_cmd.extend(["-stream_loop", "-1", "-i", bgm_audio])
 
     filter_chains = []
-    target_w, target_h = 1080, 1920
+    res_str = (resolution or "1080p").lower()
+    if res_str == "720p":
+        target_w, target_h = 720, 1280
+    elif res_str in ("4k", "2160p"):
+        target_w, target_h = 2160, 3840
+    else:
+        target_w, target_h = 1080, 1920
 
-    # Framing Layout: Always produces 1080x1920 portrait video!
+    scale_ratio = target_w / 1080.0
+
+    # Framing Layout: Produces portrait video with target resolution
     if framing_layout == "fit_blur":
         # Gambar 2: 16:9 original video centered, with dark & blurred background
         if background_style == "pure_black":
-            filter_chains.append(f"color=c=black:s=1080x1920:d={duration}[bg]")
+            filter_chains.append(f"color=c=black:s={target_w}x{target_h}:d={duration}[bg]")
         elif background_style == "extra_dark_blur":
             filter_chains.append(
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},"
                 "boxblur=30:5,drawbox=t=fill:color=black@0.80[bg]"
             )
         elif background_style == "dark_gradient":
             filter_chains.append(
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},"
                 "boxblur=25:5,drawbox=t=fill:color=black@0.75[bg]"
             )
         else:  # "dark_blur" default (Gambar 2)
             filter_chains.append(
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h},"
                 "boxblur=25:5,drawbox=t=fill:color=black@0.60[bg]"
             )
-        filter_chains.append("[0:v]scale=1080:-2[main]")
+        filter_chains.append(f"[0:v]scale={target_w}:-2[main]")
         filter_chains.append("[bg][main]overlay=0:(H-h)/2[v0]")
     else:
         # Standard Center Crop to 9:16 Vertical with Pan & Zoom support
         if zoom_level != 1.0 or pan_offset != 0:
             filter_chains.append(
-                f"[0:v]scale=1080*{zoom_level}:-1,crop=1080:1920:(in_w-out_w)/2+({pan_offset}/100)*(in_w-out_w)/2:(in_h-out_h)/2[v0]"
+                f"[0:v]scale={target_w}*{zoom_level}:-1,crop={target_w}:{target_h}:(in_w-out_w)/2+({pan_offset}/100)*(in_w-out_w)/2:(in_h-out_h)/2[v0]"
             )
         else:
-            filter_chains.append("[0:v]crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920[v0]")
+            filter_chains.append(f"[0:v]crop=ih*(9/16):ih:(iw-ow)/2:0,scale={target_w}:{target_h}[v0]")
 
     last_v = "v0"
 
@@ -362,41 +373,49 @@ def render_clip(
     for i, c in enumerate(overlay_cards):
         next_v = f"v{i+1}"
         input_idx = i + 1
-        card_h = c["height"]
+        card_h = int(c["height"] * scale_ratio)
 
         if caption_position == "top":
-            y_pos = 250  # safely below 220px top boundary
+            y_pos = int(250 * scale_ratio)
         elif caption_position == "middle":
             if framing_layout == "fit_blur":
-                y_pos = 1270 - (card_h // 2)
+                y_pos = int(1270 * scale_ratio) - (card_h // 2)
             else:
                 y_pos = (target_h - card_h) // 2
         else:  # bottom default
-            y_pos = 1440 - card_h - 15  # safely above 450px bottom boundary
+            y_pos = int(1440 * scale_ratio) - card_h - int(15 * scale_ratio)
 
         filter_chains.append(
+            f"[{last_v}][{input_idx}:v]scale={target_w}:-1[sub_s_{i}];"
+            f"[sub_s_{i}]overlay=(W-w)/2:{y_pos}:enable='between(t,{c['start']},{c['end']})'[{next_v}]"
+            if scale_ratio != 1.0 else
             f"[{last_v}][{input_idx}:v]overlay=(W-w)/2:{y_pos}:enable='between(t,{c['start']},{c['end']})'[{next_v}]"
         )
         last_v = next_v
 
     # Burn Watermark if enabled
     if has_watermark:
-        target_wm_w = max(50, min(400, int(target_w * (watermark_size / 100))))
+        target_wm_w = max(40, int(target_w * (watermark_size / 100)))
         filter_chains.append(
             f"[{wm_idx}:v]scale={target_wm_w}:-1,format=rgba,colorchannelmixer=aa={watermark_opacity}[wm]"
         )
 
-        # Safe Zone coordinates for Watermark
+        # Safe Zone coordinates for Watermark scaled proportionally
+        side_x = int(50 * scale_ratio)
+        header_y = int(250 * scale_ratio)
+        footer_y = int(1430 * scale_ratio)
+        reels_icon_x = int(110 * scale_ratio)
+
         if watermark_pos == "top_left":
-            wm_x, wm_y = "50", "250"
+            wm_x, wm_y = f"{side_x}", f"{header_y}"
         elif watermark_pos == "bottom_left":
-            wm_x, wm_y = "50", "1430-h"
+            wm_x, wm_y = f"{side_x}", f"{footer_y}-h"
         elif watermark_pos == "bottom_right":
-            wm_x, wm_y = "W-w-110", "1430-h"  # clear 100px Reels icons
+            wm_x, wm_y = f"W-w-{reels_icon_x}", f"{footer_y}-h"
         elif watermark_pos == "center":
             wm_x, wm_y = "(W-w)/2", "(H-h)/2"
         else:  # "top_right" default
-            wm_x, wm_y = "W-w-50", "250"
+            wm_x, wm_y = f"W-w-{side_x}", f"{header_y}"
 
         filter_chains.append(f"[{last_v}][wm]overlay={wm_x}:{wm_y}[v_wm]")
         last_v = "v_wm"
@@ -415,9 +434,10 @@ def render_clip(
         "-filter_complex", filter_complex,
         "-map", f"[{last_v}]",
         "-map", audio_map,
+        "-r", str(fps or 30),
         "-c:v", "libx264",
         "-preset", "fast",
-        "-crf", "20",
+        "-b:v", f"{bitrate or 14}M",
         "-c:a", "aac",
         "-b:a", "192k",
         "-movflags", "+faststart",
@@ -466,6 +486,9 @@ def main():
     parser.add_argument("--watermark-opacity", type=float, default=0.85, help="Watermark opacity: 0.1 to 1.0")
     parser.add_argument("--bgm-audio", default=None, help="Background music audio file path")
     parser.add_argument("--bgm-volume", type=float, default=0.15, help="Background music volume multiplier: 0.05 to 0.5")
+    parser.add_argument("--resolution", default="1080p", help="Target resolution: 1080p, 720p, 4k")
+    parser.add_argument("--fps", type=int, default=30, help="Output framerate FPS: 30, 60")
+    parser.add_argument("--bitrate", type=int, default=14, help="Target video bitrate in Mbps: 14, 18, 30")
     parser.add_argument("--captions-json", default="[]", help="JSON string of caption segments")
 
     args = parser.parse_args()
@@ -495,6 +518,9 @@ def main():
         watermark_opacity=args.watermark_opacity,
         bgm_audio=args.bgm_audio,
         bgm_volume=args.bgm_volume,
+        resolution=args.resolution,
+        fps=args.fps,
+        bitrate=args.bitrate,
         captions=captions
     )
 

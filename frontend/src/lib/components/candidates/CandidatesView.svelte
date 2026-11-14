@@ -3,47 +3,22 @@
   import { goto } from '$app/navigation';
   import { formatTimecode } from '#lib/utils/clippingRules';
   import type { ClipCandidate } from '#lib/types';
-  import EditorPlayer from '../editor/EditorPlayer.svelte';
   import {
     Scissors,
-    Download,
-    Check,
     Sparkles,
     Volume2,
     Smartphone,
-    Search,
     ArrowRight,
     SquarePlay,
-    Play,
-    Eye,
-    Loader2,
   } from 'lucide-svelte';
 
   let filterRatio = $state<string>('all');
   let minScoreFilter = $state<number>(0);
-  let searchQuery = $state<string>('');
-
-  // State untuk modal preview instan
-  let previewModalClip = $state<ClipCandidate | null>(null);
-  let modalCurrentTime = $state(0);
-  let modalIsPlaying = $state(false);
-
-  // State tracking download
-  let downloadingClipId = $state<string | null>(null);
-  let downloadedClipIds = $state<Record<string, boolean>>({});
 
   const filteredCandidates = $derived(
     workspace.candidates.filter((clip) => {
       if (filterRatio !== 'all' && clip.aspectRatio !== filterRatio) return false;
       if (clip.score < minScoreFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTitle = clip.title.toLowerCase().includes(q);
-        const matchQuote = clip.excerptQuote.toLowerCase().includes(q);
-        const matchSpeaker = clip.speaker.toLowerCase().includes(q);
-        const matchTags = clip.tags.some((t) => t.toLowerCase().includes(q));
-        if (!matchTitle && !matchQuote && !matchSpeaker && !matchTags) return false;
-      }
       return true;
     })
   );
@@ -51,35 +26,6 @@
   function handleOpenEditor(clip: ClipCandidate) {
     workspace.selectClip(clip);
     goto(`/editor?clipId=${clip.id}`);
-  }
-
-  function handleOpenPreviewModal(clip: ClipCandidate) {
-    workspace.selectClip(clip);
-    previewModalClip = clip;
-    modalCurrentTime = clip.startTime;
-    modalIsPlaying = true;
-  }
-
-  function handleClosePreviewModal() {
-    previewModalClip = null;
-    modalIsPlaying = false;
-  }
-
-  async function handleDirectDownload(clip: ClipCandidate) {
-    if (downloadingClipId === clip.id) return;
-    downloadingClipId = clip.id;
-
-    try {
-      await workspace.quickDownloadClip(clip);
-      downloadedClipIds = { ...downloadedClipIds, [clip.id]: true };
-      setTimeout(() => {
-        downloadedClipIds = { ...downloadedClipIds, [clip.id]: false };
-      }, 5000);
-    } catch (e) {
-      console.error('Download error:', e);
-    } finally {
-      downloadingClipId = null;
-    }
   }
 </script>
 
@@ -93,68 +39,45 @@
         </h1>
         {#if workspace.candidates.length > 0}
           <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] border border-[#B6F36B]/30">
-            Tinggal Download
+            {workspace.candidates.length} Klip Siap Diedit
           </span>
         {/if}
       </div>
       <p class="text-xs text-[#9299A3] mt-1">
-        Tonton preview klip di bawah ini dan unduh langsung potongan video 9:16 lengkap dengan subtitle dan watermark.
+        Pilih klip di bawah ini untuk membuka dan menyesuaikan subtitle, framing, logo, serta musik di Editor.
       </p>
     </div>
 
-    <!-- Top Action Bar: Search & Aspect Ratio Filters -->
+    <!-- Top Action Bar: Aspect Ratio Filters -->
     {#if workspace.candidates.length > 0}
-      <div class="flex flex-wrap items-center gap-2.5">
-        <!-- Search -->
-        <div class="relative">
-          <Search class="w-3.5 h-3.5 text-[#626871] absolute left-2.5 top-2.5" />
-          <input
-            type="text"
-            placeholder="Cari kutipan, kata kunci..."
-            bind:value={searchQuery}
-            class="h-9 pl-8 pr-3 text-xs bg-[#191C20] border border-[#292E34] rounded-lg text-[#E7E9EC] placeholder-[#626871] focus:border-[#B6F36B] focus:outline-none w-48"
-          />
-        </div>
-
-        <!-- Aspect Ratio Filter Tabs -->
-        <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
-            type="text"
-            placeholder="Cari kutipan, kata kunci..."
-            bind:value={searchQuery}
-            class="h-9 pl-8 pr-3 text-xs bg-[#191C20] border border-[#292E34] rounded-lg text-[#E7E9EC] placeholder-[#626871] focus:border-[#B6F36B] focus:outline-none w-44"
-          />
-        </div>
-
-        <!-- Aspect Ratio Filter Tabs -->
-        <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
-          <button
-            type="button"
-            onclick={() => (filterRatio = 'all')}
-            class="px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === 'all'
-              ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
-              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-          >
-            Semua
-          </button>
-          <button
-            type="button"
-            onclick={() => (filterRatio = '9:16')}
-            class="px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === '9:16'
-              ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
-              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-          >
-            9:16
-          </button>
-          <button
-            type="button"
-            onclick={() => (filterRatio = '1:1')}
-            class="px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === '1:1'
-              ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
-              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-          >
-            1:1
-          </button>
-        </div>
+      <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34] self-start md:self-auto">
+        <button
+          type="button"
+          onclick={() => (filterRatio = 'all')}
+          class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === 'all'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
+            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+        >
+          Semua
+        </button>
+        <button
+          type="button"
+          onclick={() => (filterRatio = '9:16')}
+          class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === '9:16'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
+            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+        >
+          9:16
+        </button>
+        <button
+          type="button"
+          onclick={() => (filterRatio = '1:1')}
+          class="px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer {filterRatio === '1:1'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
+            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+        >
+          1:1
+        </button>
       </div>
     {/if}
   </div>
@@ -179,7 +102,7 @@
           <button
             type="button"
             onclick={() => goto('/library')}
-            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer"
+            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer shadow-sm"
           >
             <SquarePlay class="w-4 h-4" />
             <span>Masukkan Link YouTube</span>
@@ -188,25 +111,27 @@
         {:else}
           <button
             type="button"
-            onclick={() => { workspace.runAnalysis(); goto('/analysis'); }}
-            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer"
+            onclick={() => {
+              workspace.runAnalysis();
+              goto('/analysis');
+            }}
+            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer shadow-sm"
           >
-            <Sparkles class="w-3.5 h-3.5 fill-current" />
-            <span>⚡ Jalankan Analisis AI Sekarang</span>
+            <Sparkles class="w-4 h-4 fill-current" />
+            <span>Mulai Analisis AI Sekarang</span>
+            <ArrowRight class="w-3.5 h-3.5" />
           </button>
         {/if}
       </div>
     </div>
   {:else if filteredCandidates.length === 0}
-    <div class="p-12 text-center bg-[#191C20] border border-[#292E34] rounded-lg">
-      <p class="text-sm text-[#E7E9EC] font-medium">Tidak ada klip yang cocok dengan filter ini.</p>
-      <p class="text-xs text-[#9299A3] mt-1">Coba reset filter pencarian untuk melihat semua klip.</p>
+    <div class="p-8 text-center text-[#9299A3] text-xs bg-[#191C20] rounded-lg border border-[#292E34]">
+      Tidak ada klip yang sesuai dengan filter rasio "{filterRatio}".
       <button
         type="button"
         onclick={() => {
           filterRatio = 'all';
           minScoreFilter = 0;
-          searchQuery = '';
         }}
         class="mt-4 px-3 py-1.5 text-xs font-medium text-[#111315] bg-[#B6F36B] rounded cursor-pointer"
       >
@@ -216,20 +141,15 @@
   {:else}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
       {#each filteredCandidates as clip (clip.id)}
-        {@const isDownloadingThis = downloadingClipId === clip.id}
-        {@const isDownloadedThis = downloadedClipIds[clip.id]}
-
         <div
           class="p-5 rounded-xl border border-[#292E34] hover:border-[#383F47] bg-[#191C20] shadow-sm transition-all"
         >
           <!-- Header: Title & Viral Score -->
           <div class="flex items-start justify-between gap-3 mb-3">
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-[#E7E9EC] tracking-tight">
-                  {clip.title}
-                </span>
-              </div>
+            <div class="flex-1 min-w-0">
+              <span class="text-sm font-bold text-[#E7E9EC] tracking-tight block truncate">
+                {clip.title}
+              </span>
 
               <div class="flex items-center gap-2 text-xs text-[#9299A3] mt-1">
                 <span class="text-[#E7E9EC] font-medium">{clip.speaker}</span>
@@ -255,19 +175,19 @@
             </div>
           </div>
 
-          <!-- Clickable Excerpt Quote with Preview Play Trigger -->
+          <!-- Clickable Excerpt Quote with Editor Trigger -->
           <div
             role="button"
             tabindex="0"
-            onclick={() => handleOpenPreviewModal(clip)}
-            onkeydown={(e) => { if (e.key === 'Enter') handleOpenPreviewModal(clip); }}
+            onclick={() => handleOpenEditor(clip)}
+            onkeydown={(e) => { if (e.key === 'Enter') handleOpenEditor(clip); }}
             class="group p-3.5 rounded-lg bg-[#111315] hover:bg-[#15181C] border border-[#292E34] hover:border-[#B6F36B]/40 text-xs text-[#E7E9EC] leading-relaxed mb-4 transition-all cursor-pointer relative"
-            title="Klik untuk menonton preview 9:16 klip ini"
+            title="Klik untuk membuka dan mengedit klip ini di Editor"
           >
             <div class="italic">"{clip.excerptQuote}"</div>
             <div class="mt-2 flex items-center gap-1.5 text-[11px] text-[#B6F36B] font-medium opacity-80 group-hover:opacity-100">
-              <Play class="w-3 h-3 fill-current" />
-              <span>Klik di sini untuk tonton preview hasil 9:16</span>
+              <Scissors class="w-3 h-3 stroke-[2]" />
+              <span>Klik di sini untuk mengedit klip ini</span>
             </div>
           </div>
 
@@ -304,126 +224,21 @@
             </div>
           </div>
 
-          <!-- Action Bar: Direct Download, Preview, Edit -->
-          <div class="flex items-center justify-end gap-2.5 pt-3.5 border-t border-[#292E34]">
-            <!-- Tombol Preview Modal -->
-            <button
-              type="button"
-              onclick={() => handleOpenPreviewModal(clip)}
-              class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Tonton preview hasil editan klip ini"
-            >
-              <Eye class="w-3.5 h-3.5 text-[#B6F36B]" />
-              <span>Preview</span>
-            </button>
-
-            <!-- Tombol Buka di Editor -->
+          <!-- Action Bar: Buka di Editor -->
+          <div class="flex items-center justify-end pt-3 border-t border-[#292E34]">
             <button
               type="button"
               onclick={() => handleOpenEditor(clip)}
-              class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Buka pengeditan subtitle dan framing"
+              class="h-8 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+              title="Buka pengeditan subtitle, framing, watermark & musik di Editor"
             >
-              <Scissors class="w-3.5 h-3.5" />
-              <span>Edit</span>
+              <Scissors class="w-3.5 h-3.5 stroke-[2.2]" />
+              <span>Buka di Editor</span>
+              <ArrowRight class="w-3.5 h-3.5" />
             </button>
-
-            <!-- TOMBOL UNDUH LANGSUNG (MP4) -->
-              <button
-                type="button"
-                onclick={() => handleDirectDownload(clip)}
-                disabled={isDownloadingThis}
-                class="h-8 px-3.5 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md disabled:opacity-75"
-                title="Unduh langsung file video MP4 klip ini"
-              >
-                {#if isDownloadingThis}
-                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
-                  <span>Mengunduh...</span>
-                {:else if isDownloadedThis}
-                  <Check class="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Terunduh!</span>
-                {:else}
-                  <Download class="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Unduh MP4</span>
-                {/if}
-              </button>
-            </div>
           </div>
+        </div>
       {/each}
     </div>
   {/if}
 </div>
-
-<!-- MODAL PREVIEW HASIL KLIP (Interaktif 9:16 + Subtitle + Watermark) -->
-{#if previewModalClip}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-    <div class="bg-[#14171A] border border-[#292E34] rounded-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden shadow-2xl">
-      <!-- Modal Header -->
-      <div class="h-12 border-b border-[#292E34] px-4 flex items-center justify-between bg-[#191C20] shrink-0">
-        <div class="flex items-center gap-2.5 overflow-hidden">
-          <span class="w-2 h-2 rounded-full bg-[#B6F36B] animate-pulse"></span>
-          <span class="text-xs font-bold text-[#E7E9EC] truncate max-w-[340px]">
-            Preview Video 9:16: {previewModalClip.title}
-          </span>
-          <span class="text-[10px] font-mono text-[#B6F36B] px-1.5 py-0.5 rounded bg-[#111315] border border-[#292E34]">
-            {previewModalClip.duration}s
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onclick={handleClosePreviewModal}
-          class="w-7 h-7 rounded-lg bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] hover:bg-[#292E34] flex items-center justify-center transition-colors cursor-pointer"
-          aria-label="Tutup Preview"
-        >
-          <X class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- Modal Body: Player Interaktif -->
-      <div class="flex-1 flex overflow-hidden min-h-[560px]">
-        <EditorPlayer
-          clip={previewModalClip}
-          bind:currentTime={modalCurrentTime}
-          bind:isPlaying={modalIsPlaying}
-        />
-      </div>
-
-      <!-- Modal Footer Action Bar -->
-      <div class="p-3.5 border-t border-[#292E34] bg-[#191C20] flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-        <div class="text-xs text-[#9299A3] truncate max-w-sm">
-          "{previewModalClip.excerptQuote}"
-        </div>
-
-        <div class="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
-          <button
-            type="button"
-            onclick={() => {
-              if (previewModalClip) {
-                handleOpenEditor(previewModalClip);
-                handleClosePreviewModal();
-              }
-            }}
-            class="h-9 px-3.5 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer flex-1 sm:flex-none"
-          >
-            <Scissors class="w-3.5 h-3.5 text-[#B6F36B]" />
-            <span>Buka di Editor Lengkap</span>
-          </button>
-
-          <button
-            type="button"
-            onclick={() => {
-              if (previewModalClip) {
-                handleDirectDownload(previewModalClip);
-              }
-            }}
-            class="h-9 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md flex-1 sm:flex-none"
-          >
-            <Download class="w-4 h-4 stroke-[2.4]" />
-            <span>⬇️ Unduh Klip Ini (MP4)</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-{/if}

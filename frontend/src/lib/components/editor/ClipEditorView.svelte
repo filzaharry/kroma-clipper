@@ -34,6 +34,8 @@
     Trash2,
     Volume2,
     AlertCircle,
+    X,
+    Film,
   } from 'lucide-svelte';
 
   let { clip }: { clip: ClipCandidate } = $props();
@@ -48,6 +50,51 @@
   let isPlaying = $state(false);
   let isDownloading = $state(false);
   let downloadSuccess = $state(false);
+
+  // Export Modal state (Pilihan Resolusi Ekspor, FPS, Target Bitrate)
+  let showExportModal = $state(false);
+  let selectedResolution = $state<'1080p' | '720p' | '4k'>('1080p');
+  let selectedFps = $state<30 | 60>(30);
+  let selectedBitrate = $state<14 | 18 | 30>(14);
+  let isExportRendering = $state(false);
+  let exportSuccess = $state(false);
+  let exportError = $state<string | null>(null);
+
+  function openExportModal() {
+    showExportModal = true;
+    exportSuccess = false;
+    exportError = null;
+  }
+
+  function closeExportModal() {
+    if (isExportRendering) return;
+    showExportModal = false;
+  }
+
+  async function handleExecuteExport() {
+    if (isExportRendering) return;
+    isExportRendering = true;
+    exportError = null;
+    exportSuccess = false;
+
+    try {
+      await workspace.quickDownloadClip(clip, {
+        resolution: selectedResolution,
+        fps: selectedFps,
+        bitrate: selectedBitrate,
+      });
+      exportSuccess = true;
+      setTimeout(() => {
+        showExportModal = false;
+        exportSuccess = false;
+      }, 2500);
+    } catch (e: any) {
+      console.error('Export error:', e);
+      exportError = e.message || 'Gagal merender video. Silakan coba lagi.';
+    } finally {
+      isExportRendering = false;
+    }
+  }
 
   // Watermark state
   let isUploadingWatermark = $state(false);
@@ -429,24 +476,15 @@
         <span class="hidden md:inline">Jadwalkan</span>
       </button>
 
-      <!-- TOMBOL UNDUH LANGSUNG (MP4) -->
+      <!-- TOMBOL UNDUH LANGSUNG (MP4) DENGAN MODAL OPSI EKSPOR -->
       <button
         type="button"
-        onclick={handleQuickDownload}
-        disabled={isDownloading}
-        class="h-8 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 disabled:opacity-75 shrink-0"
-        title="Langsung unduh klip ini sebagai video MP4 siap posting"
+        onclick={openExportModal}
+        class="h-8 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shrink-0"
+        title="Buka opsi resolusi ekspor, FPS, dan bitrate untuk download video MP4"
       >
-        {#if isDownloading}
-          <Loader2 class="w-3.5 h-3.5 animate-spin" />
-          <span>Sedang Mengunduh...</span>
-        {:else if downloadSuccess}
-          <Check class="w-3.5 h-3.5 stroke-[2.5]" />
-          <span>Berhasil Diunduh!</span>
-        {:else}
-          <Download class="w-3.5 h-3.5 stroke-[2.5]" />
-          <span>⬇️ Unduh Video Ini (MP4)</span>
-        {/if}
+        <Download class="w-3.5 h-3.5 stroke-[2.5]" />
+        <span>⬇️ Unduh Video Ini (MP4)</span>
       </button>
     </div>
   </div>
@@ -1150,3 +1188,272 @@
   <!-- Bottom Stage: Dedicated Timeline Component -->
   <EditorTimeline {clip} bind:currentTime bind:isPlaying />
 </div>
+
+<!-- MODAL PILIHAN EKSPOR VIDEO (Resolusi, FPS, Target Bitrate) -->
+{#if showExportModal}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+    <div class="bg-[#14171A] border border-[#292E34] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+      <!-- Modal Header -->
+      <div class="h-14 border-b border-[#292E34] px-5 flex items-center justify-between bg-[#191C20] shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-[#B6F36B]/15 border border-[#B6F36B]/30 flex items-center justify-center text-[#B6F36B]">
+            <Download class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-[#E7E9EC] flex items-center gap-2">
+              <span>Pengaturan Ekspor Video</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] font-mono font-semibold">
+                MP4
+              </span>
+            </h3>
+            <p class="text-[11px] text-[#9299A3]">Pilih resolusi, kecepatan frame, dan bitrate sebelum download</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick={closeExportModal}
+          disabled={isExportRendering}
+          class="w-7 h-7 rounded-lg bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] hover:bg-[#292E34] flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+          aria-label="Tutup"
+        >
+          <X class="w-4 h-4" />
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+        <!-- 1. Pilihan Resolusi Ekspor -->
+        <div>
+          <div class="text-xs font-semibold text-[#E7E9EC] mb-2 flex items-center justify-between">
+            <span>📐 Pilihan Resolusi Ekspor</span>
+            <span class="text-[10px] font-mono text-[#9299A3]">Format Vertikal 9:16</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onclick={() => (selectedResolution = '1080p')}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedResolution === '1080p'
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>1080p FHD</span>
+                {#if selectedResolution === '1080p'}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#B6F36B] font-semibold mt-0.5">Rekomendasi</div>
+              <div class="text-[9px] text-[#626871] font-mono mt-0.5">1080 x 1920</div>
+            </button>
+
+            <button
+              type="button"
+              onclick={() => (selectedResolution = '720p')}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedResolution === '720p'
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>720p HD</span>
+                {#if selectedResolution === '720p'}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Ukuran Ringan</div>
+              <div class="text-[9px] text-[#626871] font-mono mt-0.5">720 x 1280</div>
+            </button>
+
+            <button
+              type="button"
+              onclick={() => (selectedResolution = '4k')}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedResolution === '4k'
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>4K UHD</span>
+                {#if selectedResolution === '4k'}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Kualitas Ultra</div>
+              <div class="text-[9px] text-[#626871] font-mono mt-0.5">2160 x 3840</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Kecepatan Frame (FPS) -->
+        <div>
+          <div class="text-xs font-semibold text-[#E7E9EC] mb-2 flex items-center justify-between">
+            <span>🎞️ Kecepatan Frame (FPS)</span>
+            <span class="text-[10px] font-mono text-[#9299A3]">Frame Per Second</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onclick={() => (selectedFps = 30)}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedFps === 30
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>30 FPS</span>
+                {#if selectedFps === 30}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Standar Medsos (TikTok/Reels/Shorts)</div>
+            </button>
+
+            <button
+              type="button"
+              onclick={() => (selectedFps = 60)}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedFps === 60
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>60 FPS</span>
+                {#if selectedFps === 60}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Gerakan Sangat Mulus & Halus</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Target Bitrate -->
+        <div>
+          <div class="text-xs font-semibold text-[#E7E9EC] mb-2 flex items-center justify-between">
+            <span>⚡ Target Bitrate</span>
+            <span class="text-[10px] font-mono text-[#9299A3]">Megabit per detik (Mbps)</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onclick={() => (selectedBitrate = 14)}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedBitrate === 14
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>14 Mbps</span>
+                {#if selectedBitrate === 14}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Seimbang</div>
+              <div class="text-[9px] text-[#626871] mt-0.5">Cepat Diunggah</div>
+            </button>
+
+            <button
+              type="button"
+              onclick={() => (selectedBitrate = 18)}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedBitrate === 18
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>18 Mbps</span>
+                {#if selectedBitrate === 18}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#B6F36B] font-semibold mt-0.5">Tinggi (Optimal)</div>
+              <div class="text-[9px] text-[#626871] mt-0.5">Rekomendasi IG</div>
+            </button>
+
+            <button
+              type="button"
+              onclick={() => (selectedBitrate = 30)}
+              class="p-2.5 rounded-xl border text-left transition-all cursor-pointer {selectedBitrate === 30
+                ? 'bg-[#B6F36B]/10 border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]'
+                : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#626871]'}"
+            >
+              <div class="text-xs font-bold text-[#E7E9EC] flex items-center justify-between">
+                <span>30 Mbps</span>
+                {#if selectedBitrate === 30}
+                  <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                {/if}
+              </div>
+              <div class="text-[10px] text-[#9299A3] mt-0.5">Mastering</div>
+              <div class="text-[9px] text-[#626871] mt-0.5">Arsip Lossless</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Ringkasan Klip -->
+        <div class="p-3 bg-[#191C20] rounded-xl border border-[#292E34] text-xs space-y-1.5">
+          <div class="text-[11px] font-bold text-[#E7E9EC] flex items-center justify-between">
+            <span class="truncate max-w-[320px]">"{clip.title}"</span>
+            <span class="font-mono text-[#B6F36B] shrink-0">{clip.duration} detik</span>
+          </div>
+          <div class="flex flex-wrap gap-2 text-[10px] text-[#9299A3] pt-1 border-t border-[#292E34]">
+            <span>Gaya: <strong class="text-[#E7E9EC]">{clip.captionPreset || 'Hormozi'}</strong></span>
+            <span>•</span>
+            <span>Framing: <strong class="text-[#E7E9EC]">{clip.framingLayout === 'fit_blur' ? '16:9 Blur Gelap' : '9:16 Vertikal'}</strong></span>
+            {#if clip.watermark?.enabled && clip.watermark?.imageUrl}
+              <span>•</span>
+              <span class="text-[#B6F36B]">✓ Watermark Logo</span>
+            {/if}
+            {#if clip.bgm?.enabled && clip.bgm?.audioUrl}
+              <span>•</span>
+              <span class="text-[#B6F36B]">✓ Musik Latar (BGM)</span>
+            {/if}
+          </div>
+        </div>
+
+        <!-- Error Alert -->
+        {#if exportError}
+          <div class="p-3 bg-red-950/60 border border-red-500/50 rounded-xl text-xs text-red-300 flex items-start gap-2">
+            <AlertCircle class="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <div class="font-bold">Terjadi Kesalahan Render</div>
+              <p class="text-[11px] text-red-300/90 mt-0.5">{exportError}</p>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Success Alert -->
+        {#if exportSuccess}
+          <div class="p-3 bg-[#B6F36B]/15 border border-[#B6F36B]/40 rounded-xl text-xs text-[#B6F36B] flex items-center gap-2">
+            <Check class="w-4 h-4 shrink-0 stroke-[2.5]" />
+            <span class="font-bold">Video berhasil dirender dan otomatis diunduh ke browser Anda!</span>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="h-16 border-t border-[#292E34] px-5 bg-[#191C20] flex items-center justify-between shrink-0">
+        <button
+          type="button"
+          onclick={closeExportModal}
+          disabled={isExportRendering}
+          class="h-9 px-4 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#9299A3] hover:text-[#E7E9EC] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+        >
+          Batal
+        </button>
+
+        <button
+          type="button"
+          onclick={handleExecuteExport}
+          disabled={isExportRendering}
+          class="h-9 px-5 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg disabled:opacity-75"
+        >
+          {#if isExportRendering}
+            <Loader2 class="w-4 h-4 animate-spin" />
+            <span>Merender Video ({selectedResolution}, {selectedFps}fps, {selectedBitrate}Mbps)...</span>
+          {:else if exportSuccess}
+            <Check class="w-4 h-4 stroke-[2.5]" />
+            <span>Selesai Terunduh!</span>
+          {:else}
+            <Download class="w-4 h-4 stroke-[2.5]" />
+            <span>⚡ Mulai Render & Unduh MP4</span>
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

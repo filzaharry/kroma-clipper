@@ -1,5 +1,12 @@
 <script lang="ts">
-  import ExportQueueView from '#lib/components/export/ExportQueueView.svelte';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+
+  onMount(() => {
+    goto('/candidates');
+  });
 </script>
 
-<ExportQueueView />
+<div class="flex-1 flex items-center justify-center bg-[#111315] text-[#9299A3] text-xs">
+  Mengarahkan ke Pilihan Klip...
+</div>
