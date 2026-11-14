@@ -41,8 +41,9 @@
   let subtitleOffset = $state(0);
 
   let iframeRef: HTMLIFrameElement | null = $state(null);
-  let isYtPlaying = $state(false);
   let animFrameId: number | null = null;
+  let lastFrameTime = 0;
+  let lastSentSeek = -1;
   let originHost = $state('http://localhost:3001');
 
   // Extract pure YouTube video ID
@@ -51,17 +52,54 @@
   );
 
   // Waktu efektif subtitle setelah ditambahkan offset kalibrasi
-  const effectiveTime = $derived(currentTime + subtitleOffset);
+  const effectiveTime = $derived(Math.max(clip.startTime, currentTime + subtitleOffset));
 
-  // Active caption segment based on effectiveTime
-  const currentSegment = $derived(
-    clip.captions.find((c) => effectiveTime >= c.start && effectiveTime <= c.end) || clip.captions[0]
+  // Active caption segment based on effectiveTime (dengan proteksi jeda bicara antar kalimat)
+  const currentSegment = $derived.by(() => {
+    if (!clip.captions || clip.captions.length === 0) return null;
+    // 1. Cek kecocokan waktu langsung
+    const exact = clip.captions.find((c) => effectiveTime >= c.start && effectiveTime <= c.end);
+    if (exact) return exact;
+
+    // 2. Jika di jeda singkat sebelum kalimat berikutnya, pertahankan kalimat sebelumnya
+    for (let i = 0; i < clip.captions.length; i++) {
+      const c = clip.captions[i];
+      if (effectiveTime < c.start) {
+        return i > 0 ? clip.captions[i - 1] : c;
+      }
+    }
+    return clip.captions[clip.captions.length - 1];
+  });
+
+  // Jendela 4 - 6 kata aktif agar teks di layar vertikal 9:16 tetap ringkas, besar, dan tidak bertumpuk
+  const visibleWords = $derived.by(() => {
+    if (!currentSegment?.words || currentSegment.words.length === 0) return null;
+    const allWords = currentSegment.words;
+    if (allWords.length <= 6) return allWords;
+
+    // Cari kata yang sedang aktif dibicarakan
+    let activeIdx = allWords.findIndex((w) => effectiveTime >= w.start && effectiveTime <= w.end);
+    if (activeIdx === -1) {
+      activeIdx = allWords.findIndex((w) => effectiveTime < w.start);
+      activeIdx = activeIdx > 0 ? activeIdx - 1 : 0;
+    }
+
+    // Jendela 5 kata terpusat pada kata yang sedang dibicarakan
+    const windowSize = 5;
+    const startIdx = Math.max(0, Math.min(activeIdx - 2, allWords.length - windowSize));
+    return allWords.slice(startIdx, startIdx + windowSize);
+  });
+
+  // Kata yang sedang tepat aktif bersuara saat ini
+  const activeWord = $derived(
+    currentSegment?.words?.find((w) => effectiveTime >= w.start && effectiveTime <= w.end) || null
   );
 
-  // Source URL untuk video YouTube embed dengan parameter origin resmi agar handshake postMessage berhasil 100%
-  const embedUrl = $derived(
-    `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(originHost)}&rel=0`
-  );
+  // Source URL untuk video YouTube embed dengan origin resmi
+  const embedUrl = $derived.by(() => {
+    const originParam = originHost ? `&origin=${encodeURIComponent(originHost)}&widget_referrer=${encodeURIComponent(originHost)}` : '';
+    return `https://www.youtube.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1${originParam}&rel=0`;
+  });
 
   function sendIframeCommand(func: string, args: any = '') {
     if (iframeRef && iframeRef.contentWindow) {
@@ -76,7 +114,7 @@
     }
   }
 
-  export function enableSound() {
+  function enableSound() {
     isMuted = false;
     volume = 100;
     sendIframeCommand('unMute', '');
@@ -105,14 +143,13 @@
     }
   }
 
-  // Sinkronisasi Real-Time dengan YouTube Iframe API via PostMessage
+  // Sinkronisasi Real-Time dengan Mesin Playback 60fps & YouTube PostMessage Handshake
   onMount(() => {
     if (typeof window !== 'undefined') {
       originHost = window.location.origin;
     }
 
     const handleMessage = (e: MessageEvent) => {
-      // Terima infoDelivery dari domain YouTube
       if (!e.origin.includes('youtube')) return;
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -120,8 +157,11 @@
           // Detik video langsung dari pemutar YouTube internal
           if (typeof data.info.currentTime === 'number') {
             const ytTime = data.info.currentTime;
-            currentTime = ytTime;
-            // Jika video sudah melewati batas akhir klip, ulangi dari detik awal
+            // Kalibrasi playhead jika perbedaan dengan jam internal > 0.25 detik
+            if (Math.abs(currentTime - ytTime) > 0.25) {
+              currentTime = ytTime;
+              lastSentSeek = ytTime;
+            }
             if (ytTime >= clip.endTime) {
               restartClip();
             }
@@ -129,19 +169,17 @@
 
           // Player state: 1 = Playing, 2 = Paused, 3 = Buffering, 0 = Ended
           if (typeof data.info.playerState === 'number') {
-            if (data.info.playerState === 1) {
+            if (data.info.playerState === 1 && !isPlaying) {
               isPlaying = true;
-              isYtPlaying = true;
-            } else if (data.info.playerState === 2) {
+            } else if (data.info.playerState === 2 && isPlaying) {
               isPlaying = false;
-              isYtPlaying = false;
             } else if (data.info.playerState === 0) {
               restartClip();
             }
           }
         }
       } catch {
-        // Non-JSON message from browser extensions, ignore
+        // Abaikan pesan non-JSON dari ekstensi browser
       }
     };
 
@@ -159,18 +197,57 @@
           '*'
         );
       }
-    }, 600);
+    }, 500);
+
+    // Loop 60fps clock internal untuk memastikan playhead dan teks bergerak 100% mulus sinkron
+    lastFrameTime = performance.now();
+    const tick = () => {
+      const now = performance.now();
+      const dt = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+
+      if (isPlaying) {
+        const nextTime = currentTime + dt;
+        currentTime = nextTime;
+        lastSentSeek = nextTime;
+
+        if (currentTime >= clip.endTime) {
+          restartClip();
+        }
+      }
+
+      animFrameId = requestAnimationFrame(tick);
+    };
+
+    animFrameId = requestAnimationFrame(tick);
 
     return () => {
       window.removeEventListener('message', handleMessage);
       clearInterval(initInterval);
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
     };
   });
 
+  // Saat klip berganti, reset playhead ke detik mulai
   $effect(() => {
-    // When clip changes, reset playhead
-    currentTime = clip.startTime;
+    const start = clip.startTime;
+    currentTime = start;
+    lastSentSeek = start;
     isPlaying = true;
+    sendIframeCommand('seekTo', [start, true]);
+    sendIframeCommand('playVideo', '');
+  });
+
+  // Saat user men-scrub timeline atau melompat ke kalimat di transkrip, sinkronkan video YouTube langsung
+  $effect(() => {
+    const target = currentTime;
+    if (Math.abs(target - lastSentSeek) > 0.35) {
+      lastSentSeek = target;
+      sendIframeCommand('seekTo', [target, true]);
+    }
   });
 
   $effect(() => {
@@ -199,6 +276,7 @@
 
   function restartClip() {
     currentTime = clip.startTime;
+    lastSentSeek = clip.startTime;
     isPlaying = true;
     sendIframeCommand('seekTo', [clip.startTime, true]);
     sendIframeCommand('playVideo', '');
@@ -216,7 +294,7 @@
         sendIframeCommand('setVolume', [volume]);
       }
       sendIframeCommand('playVideo', '');
-    }, 500);
+    }, 400);
   }
 </script>
 
@@ -248,28 +326,44 @@
       </button>
     </div>
 
-    <!-- Kalibrasi Sinkronisasi Subtitle Manual -->
+    <!-- Kalibrasi Sinkronisasi Subtitle Manual Presisi -->
     <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#191C20] border border-[#292E34] text-xs">
       <span class="text-[#9299A3] flex items-center gap-1 font-medium">
         <Sparkles class="w-3.5 h-3.5 text-[#B6F36B]" />
-        <span>Sinkronisasi:</span>
+        <span>Sinkron:</span>
       </span>
       <button
         type="button"
         onclick={() => (subtitleOffset = Math.round((subtitleOffset - 0.5) * 10) / 10)}
-        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] cursor-pointer"
-        title="Teks muncul 0.5 detik lebih cepat"
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#9299A3] hover:text-[#E7E9EC] font-mono text-[10px] cursor-pointer"
+        title="Mundurkan teks 0.5s"
       >
         -0.5s
       </button>
-      <span class="font-mono text-[#B6F36B] font-bold min-w-[32px] text-center">
+      <button
+        type="button"
+        onclick={() => (subtitleOffset = Math.round((subtitleOffset - 0.2) * 10) / 10)}
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] font-semibold cursor-pointer"
+        title="Mundurkan teks 0.2s (sedikit lebih cepat)"
+      >
+        -0.2s
+      </button>
+      <span class="font-mono text-[#B6F36B] font-bold min-w-[34px] text-center bg-[#111315] px-1.5 py-0.5 rounded border border-[#292E34]">
         {subtitleOffset > 0 ? `+${subtitleOffset.toFixed(1)}` : subtitleOffset.toFixed(1)}s
       </span>
       <button
         type="button"
+        onclick={() => (subtitleOffset = Math.round((subtitleOffset + 0.2) * 10) / 10)}
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] font-semibold cursor-pointer"
+        title="Majukan teks 0.2s (sedikit lebih lambat)"
+      >
+        +0.2s
+      </button>
+      <button
+        type="button"
         onclick={() => (subtitleOffset = Math.round((subtitleOffset + 0.5) * 10) / 10)}
-        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] cursor-pointer"
-        title="Teks muncul 0.5 detik lebih lambat"
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#9299A3] hover:text-[#E7E9EC] font-mono text-[10px] cursor-pointer"
+        title="Majukan teks 0.5s"
       >
         +0.5s
       </button>
@@ -277,10 +371,15 @@
         <button
           type="button"
           onclick={() => (subtitleOffset = 0)}
-          class="text-[10px] text-[#9299A3] hover:text-[#E7E9EC] underline ml-1 cursor-pointer"
+          class="text-[10px] text-[#9299A3] hover:text-[#E7E9EC] underline ml-0.5 cursor-pointer"
         >
           Reset
         </button>
+      {/if}
+      {#if activeWord}
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-[#B6F36B]/15 text-[#B6F36B] text-[10px] font-bold border border-[#B6F36B]/30 hidden sm:inline-block">
+          "{activeWord.word}"
+        </span>
       {/if}
     </div>
 
@@ -431,8 +530,8 @@
         {#if clip.captionPreset === 'hormozi'}
           <!-- 1. HORMOZI POP: Extra Bold, Uppercase, Scale & Pop per kata -->
           <div class="inline-block px-3 py-1.5 font-black tracking-tight text-xs sm:text-sm uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] max-w-full break-words leading-tight">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="color: {isActive ? highlightColor : '#FFFFFF'}; -webkit-text-stroke: {isActive ? '1px black' : '0.5px rgba(0,0,0,0.8)'};"
@@ -449,8 +548,8 @@
         {:else if clip.captionPreset === 'mrbeast'}
           <!-- 2. MRBEAST ENERGY: Italic Black, kata aktif dibungkus badge warna -->
           <div class="inline-flex flex-wrap items-center justify-center gap-1 px-3 py-1.5 font-black italic uppercase text-xs sm:text-sm tracking-wide drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] max-w-full">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 {#if isActive}
                   <span
@@ -474,8 +573,8 @@
           <!-- 3. ALI ABDAAL: Frosted-glass pill badge, elegan modern -->
           <div class="inline-block px-4 py-2 bg-black/80 backdrop-blur-md rounded-full border border-white/20 shadow-xl max-w-[92%]">
             <div class="text-xs sm:text-[13px] font-semibold text-white/95 tracking-normal leading-relaxed">
-              {#if currentSegment?.words}
-                {#each currentSegment.words as w, idx (idx)}
+              {#if visibleWords}
+                {#each visibleWords as w, idx (idx)}
                   {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span
                     style="color: {isActive ? highlightColor : 'rgba(255,255,255,0.85)'};"
@@ -493,8 +592,8 @@
         {:else if clip.captionPreset === 'karaoke'}
           <!-- 4. KARAOKE GLOW: Mengalir dengan teks bercahaya -->
           <div class="inline-block px-3 py-1 text-xs sm:text-sm font-bold tracking-wide max-w-full break-words drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isPast = effectiveTime >= w.end}
                 {@const isCurrent = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
@@ -512,8 +611,8 @@
         {:else if clip.captionPreset === 'neon_glow'}
           <!-- 5. NEON CYBER: Pendar tabung neon elektrik -->
           <div class="inline-block px-3 py-1 font-extrabold uppercase tracking-wider text-xs sm:text-sm max-w-full">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="
@@ -533,8 +632,8 @@
         {:else if clip.captionPreset === 'vox_box'}
           <!-- 6. VOX / MEDIA BOX: Blok kontras solid hitam-kuning/hijau -->
           <div class="inline-flex flex-wrap items-center justify-center gap-1 max-w-full">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="
@@ -555,8 +654,8 @@
           <!-- 7. CINEMATIC MINIMAL: Huruf tipis berjarak lebar, elegan -->
           <div class="inline-block px-3 py-1 max-w-[90%] text-center">
             <div class="text-[11px] sm:text-xs font-medium tracking-widest uppercase text-white/95 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-relaxed">
-              {#if currentSegment?.words}
-                {#each currentSegment.words as w, idx (idx)}
+              {#if visibleWords}
+                {#each visibleWords as w, idx (idx)}
                   {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span
                     style="color: {isActive ? highlightColor : '#FFFFFF'};"
@@ -576,8 +675,8 @@
           <div class="inline-flex items-center gap-1 px-3.5 py-1.5 bg-[#0D0F11]/90 border border-[#292E34] rounded-md font-mono text-xs shadow-xl max-w-[92%]">
             <span class="text-[#B6F36B] font-bold">&gt;</span>
             <span class="text-white font-semibold">
-              {#if currentSegment?.words}
-                {#each currentSegment.words as w, idx (idx)}
+              {#if visibleWords}
+                {#each visibleWords as w, idx (idx)}
                   {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span style="color: {isActive ? highlightColor : '#E7E9EC'};" class="mr-1 {isActive ? 'font-bold underline' : ''}">
                     {w.word}
@@ -593,8 +692,8 @@
         {:else if clip.captionPreset === 'fire_gradient'}
           <!-- 9. FIRE HYPE: Gradasi api menyala saat kata ditekankan -->
           <div class="inline-block px-3 py-1.5 font-black uppercase text-xs sm:text-sm drop-shadow-[0_3px_6px_rgba(0,0,0,0.95)] max-w-full">
-            {#if currentSegment?.words}
-              {#each currentSegment.words as w, idx (idx)}
+            {#if visibleWords}
+              {#each visibleWords as w, idx (idx)}
                 {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 {#if isActive}
                   <span class="mr-1 inline-block bg-gradient-to-r from-yellow-300 via-amber-400 to-red-500 bg-clip-text text-transparent font-black scale-120 drop-shadow-md">
