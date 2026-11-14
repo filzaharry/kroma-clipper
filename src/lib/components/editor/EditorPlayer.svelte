@@ -12,7 +12,6 @@
     Volume2,
     VolumeX,
     Sparkles,
-    RotateCw,
   } from 'lucide-svelte';
 
   let {
@@ -42,10 +41,9 @@
   let subtitleOffset = $state(0);
 
   let iframeRef: HTMLIFrameElement | null = $state(null);
-  let isYtBuffering = $state(false);
-  let lastServerTime = 0;
-  let lastSyncTimestamp = performance.now();
+  let isYtPlaying = $state(false);
   let animFrameId: number | null = null;
+  let originHost = $state('http://localhost:3001');
 
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
@@ -60,9 +58,9 @@
     clip.captions.find((c) => effectiveTime >= c.start && effectiveTime <= c.end) || clip.captions[0]
   );
 
-  // Source URL untuk video YouTube embed
+  // Source URL untuk video YouTube embed dengan parameter origin resmi agar handshake postMessage berhasil 100%
   const embedUrl = $derived(
-    `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1&rel=0`
+    `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(originHost)}&rel=0`
   );
 
   function sendIframeCommand(func: string, args: any = '') {
@@ -109,7 +107,12 @@
 
   // Sinkronisasi Real-Time dengan YouTube Iframe API via PostMessage
   onMount(() => {
+    if (typeof window !== 'undefined') {
+      originHost = window.location.origin;
+    }
+
     const handleMessage = (e: MessageEvent) => {
+      // Terima infoDelivery dari domain YouTube
       if (!e.origin.includes('youtube')) return;
       try {
         const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
@@ -117,34 +120,34 @@
           // Detik video langsung dari pemutar YouTube internal
           if (typeof data.info.currentTime === 'number') {
             const ytTime = data.info.currentTime;
-            lastServerTime = ytTime;
-            lastSyncTimestamp = performance.now();
             currentTime = ytTime;
+            // Jika video sudah melewati batas akhir klip, ulangi dari detik awal
+            if (ytTime >= clip.endTime) {
+              restartClip();
+            }
           }
 
           // Player state: 1 = Playing, 2 = Paused, 3 = Buffering, 0 = Ended
           if (typeof data.info.playerState === 'number') {
             if (data.info.playerState === 1) {
               isPlaying = true;
-              isYtBuffering = false;
-            } else if (data.info.playerState === 3) {
-              isYtBuffering = true;
+              isYtPlaying = true;
             } else if (data.info.playerState === 2) {
               isPlaying = false;
-              isYtBuffering = false;
+              isYtPlaying = false;
             } else if (data.info.playerState === 0) {
               restartClip();
             }
           }
         }
-      } catch (err) {
-        // Non-JSON message from external extensions, ignore safely
+      } catch {
+        // Non-JSON message from browser extensions, ignore
       }
     };
 
     window.addEventListener('message', handleMessage);
 
-    // Initial handshake ke YouTube iframe agar mulai mengirim timecode infoDelivery
+    // Kirim sinyal listening secara berkala agar YouTube iframe selalu mengirim timecode infoDelivery
     const initInterval = setInterval(() => {
       if (iframeRef && iframeRef.contentWindow) {
         iframeRef.contentWindow.postMessage(
@@ -156,7 +159,7 @@
           '*'
         );
       }
-    }, 800);
+    }, 600);
 
     return () => {
       window.removeEventListener('message', handleMessage);
@@ -167,42 +170,15 @@
   $effect(() => {
     // When clip changes, reset playhead
     currentTime = clip.startTime;
-    lastServerTime = clip.startTime;
-    lastSyncTimestamp = performance.now();
     isPlaying = true;
   });
 
   $effect(() => {
-    if (isPlaying && !isYtBuffering) {
+    if (isPlaying) {
       sendIframeCommand('playVideo', '');
-      const tick = () => {
-        // Smooth interpolation between YouTube 250ms pings
-        if (lastServerTime > 0) {
-          const delta = (performance.now() - lastSyncTimestamp) / 1000;
-          const estimated = lastServerTime + delta;
-          if (estimated >= clip.endTime) {
-            restartClip();
-            return;
-          } else {
-            currentTime = estimated;
-          }
-        }
-        animFrameId = requestAnimationFrame(tick);
-      };
-      animFrameId = requestAnimationFrame(tick);
     } else {
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
+      sendIframeCommand('pauseVideo', '');
     }
-
-    return () => {
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
-    };
   });
 
   onDestroy(() => {
@@ -223,8 +199,6 @@
 
   function restartClip() {
     currentTime = clip.startTime;
-    lastServerTime = clip.startTime;
-    lastSyncTimestamp = performance.now();
     isPlaying = true;
     sendIframeCommand('seekTo', [clip.startTime, true]);
     sendIframeCommand('playVideo', '');
@@ -235,12 +209,14 @@
   }
 
   function handleIframeLoad() {
-    if (!isMuted) {
-      setTimeout(() => {
+    setTimeout(() => {
+      sendIframeCommand('seekTo', [clip.startTime, true]);
+      if (!isMuted) {
         sendIframeCommand('unMute', '');
         sendIframeCommand('setVolume', [volume]);
-      }, 400);
-    }
+      }
+      sendIframeCommand('playVideo', '');
+    }, 500);
   }
 </script>
 

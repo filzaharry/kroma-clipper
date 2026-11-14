@@ -37,6 +37,59 @@
     isPlaying = false;
   });
 
+  function updateSegmentText(segIndex: number, newText: string) {
+    const updatedCaptions = [...clip.captions];
+    const seg = updatedCaptions[segIndex];
+    const rawWords = newText.trim().split(/\s+/).filter(Boolean);
+    const duration = Math.max(0.5, seg.end - seg.start);
+    const wordDuration = rawWords.length > 0 ? duration / rawWords.length : 0.4;
+
+    const newWords = rawWords.map((w, i) => ({
+      word: w,
+      start: Math.round((seg.start + i * wordDuration) * 10) / 10,
+      end: Math.round((seg.start + (i + 1) * wordDuration) * 10) / 10,
+    }));
+
+    updatedCaptions[segIndex] = {
+      ...seg,
+      text: newText,
+      words: newWords,
+    };
+
+    workspace.updateClip({
+      ...clip,
+      captions: updatedCaptions,
+    });
+  }
+
+  function snapSegmentToPlayhead(segIndex: number) {
+    const updatedCaptions = [...clip.captions];
+    const seg = updatedCaptions[segIndex];
+    const oldDuration = Math.max(0.5, seg.end - seg.start);
+    const newStart = Math.round(currentTime * 10) / 10;
+    const newEnd = Math.round((newStart + oldDuration) * 10) / 10;
+
+    const rawWords = (seg.words || []).map((w) => w.word);
+    const wordDuration = rawWords.length > 0 ? oldDuration / rawWords.length : 0.4;
+    const newWords = rawWords.map((w, i) => ({
+      word: w,
+      start: Math.round((newStart + i * wordDuration) * 10) / 10,
+      end: Math.round((newStart + (i + 1) * wordDuration) * 10) / 10,
+    }));
+
+    updatedCaptions[segIndex] = {
+      ...seg,
+      start: newStart,
+      end: newEnd,
+      words: newWords,
+    };
+
+    workspace.updateClip({
+      ...clip,
+      captions: updatedCaptions,
+    });
+  }
+
   function handleSchedule() {
     workspace.selectClip(clip);
     goto('/publish');
@@ -389,28 +442,64 @@
             </div>
           </div>
         {:else}
-          <!-- Transcript Tab -->
-          <div class="space-y-3">
-            <div class="text-[11px] text-[#626871]">
-              Klik bagian teks mana pun untuk melompat ke detik tersebut:
+          <!-- Transcript Tab: Edit Teks & Kalibrasi Waktu Kalimat -->
+          <div class="space-y-4">
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg">
+              <div class="text-xs font-semibold text-[#E7E9EC] flex items-center justify-between">
+                <span>Edit & Sinkronkan Teks</span>
+                <span class="text-[10px] text-[#B6F36B] font-mono">Detik: {formatTimecode(currentTime, false)}</span>
+              </div>
+              <p class="text-[11px] text-[#9299A3] mt-1 leading-relaxed">
+                Anda bisa mengubah kata atau klik tombol <strong>Kunci Detik</strong> untuk menyesuaikan waktu mulai kalimat tepat saat pembicara bersuara.
+              </p>
             </div>
-            {#each clip.captions as seg (seg.id)}
+
+            {#each clip.captions as seg, segIdx (seg.id)}
               {@const isActiveSeg = currentTime >= seg.start && currentTime <= seg.end}
-              <button
-                type="button"
-                onclick={() => (currentTime = seg.start)}
-                class="w-full text-left p-3 rounded-lg border transition-colors cursor-pointer {isActiveSeg
-                  ? 'bg-[#20242A] border-[#B6F36B]/60 text-[#E7E9EC] shadow-sm'
-                  : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+              <div
+                class="p-3 rounded-lg border transition-all {isActiveSeg
+                  ? 'bg-[#191C20] border-[#B6F36B]/60 ring-1 ring-[#B6F36B]/30 shadow-md'
+                  : 'bg-[#14171A] border-[#292E34]'}"
               >
-                <div class="flex items-center justify-between text-[10px] font-mono mb-1 text-[#626871]">
-                  <span>{seg.speaker || 'Pembicara'}</span>
-                  <span class="tabular-nums">
-                    {formatTimecode(seg.start, false)} - {formatTimecode(seg.end, false)}
+                <div class="flex items-center justify-between text-[11px] font-mono mb-2 text-[#9299A3]">
+                  <span class="font-semibold text-[#E7E9EC]">{seg.speaker || 'Pembicara'}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[#B6F36B] font-bold">{formatTimecode(seg.start, false)} - {formatTimecode(seg.end, false)}</span>
+                    <button
+                      type="button"
+                      onclick={() => (currentTime = seg.start)}
+                      class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] text-[10px] cursor-pointer"
+                      title="Putar video mulai kalimat ini"
+                    >
+                      ▶ Putar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Input Teks Subtitle yang bisa diedit langsung -->
+                <textarea
+                  rows="2"
+                  value={seg.text}
+                  oninput={(e) => updateSegmentText(segIdx, (e.target as HTMLTextAreaElement).value)}
+                  class="w-full bg-[#111315] border border-[#292E34] focus:border-[#B6F36B] rounded p-2 text-xs text-[#E7E9EC] focus:outline-none resize-none leading-relaxed"
+                  placeholder="Ketik teks subtitle di sini..."
+                ></textarea>
+
+                <div class="mt-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onclick={() => snapSegmentToPlayhead(segIdx)}
+                    class="h-6 px-2 text-[10px] font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Jadikan detik video saat ini ({formatTimecode(currentTime, false)}) sebagai awal kalimat ini"
+                  >
+                    <span>⏱️ Kunci Mulai di {formatTimecode(currentTime, false)}</span>
+                  </button>
+
+                  <span class="text-[10px] text-[#626871] font-mono">
+                    {seg.words?.length || 0} kata terpetakan
                   </span>
                 </div>
-                <div class="text-xs leading-relaxed">{seg.text}</div>
-              </button>
+              </div>
             {/each}
           </div>
         {/if}
