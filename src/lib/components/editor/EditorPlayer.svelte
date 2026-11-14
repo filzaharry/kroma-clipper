@@ -120,11 +120,29 @@
     currentSegment?.words?.find((w) => effectiveTime >= w.start && effectiveTime <= w.end) || null
   );
 
-  // Source URL untuk video YouTube embed dengan origin resmi
+  // Source URL untuk video YouTube embed 100% bersih tanpa komponen antarmuka YouTube (tanpa scrubber bar merah, tombol play/skip, judul, logo, dsb)
   const embedUrl = $derived.by(() => {
-    const originParam = originHost ? `&origin=${encodeURIComponent(originHost)}&widget_referrer=${encodeURIComponent(originHost)}` : '';
-    return `https://www.youtube.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1${originParam}&rel=0`;
+    const originParam = originHost
+      ? `&origin=${encodeURIComponent(originHost)}&widget_referrer=${encodeURIComponent(originHost)}`
+      : '';
+    // controls=0: Menghilangkan total kontrol bar bawah, seekbar merah, logo YouTube, durasi, volume, CC, & settings
+    // modestbranding=1: Menghilangkan watermark logo YouTube besar
+    // rel=0: Tidak menampilkan video rekomendasi channel lain
+    // iv_load_policy=3: Mematikan pop-up anotasi / video card
+    // fs=0: Mematikan tombol fullscreen bawaan
+    // disablekb=1: Mematikan shortcut keyboard bawaan YouTube
+    // playsinline=1: Memastikan video diputar inline
+    // Tanpa playlist: Menghilangkan tombol next/prev video di tengah
+    return `https://www.youtube.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&enablejsapi=1${originParam}`;
   });
+
+  // Cek apakah video MP4 hasil render final sudah tersedia untuk klip ini
+  const renderedTask = $derived(
+    workspace.renderTasks.find(
+      (t) => t.clipId === clip.id && t.status === 'completed' && t.downloadUrl
+    )
+  );
+  let showRenderedVideo = $state(false);
 
   function setFramingLayout(layout: FramingLayout) {
     workspace.updateClip({
@@ -396,6 +414,20 @@
       <span>🛡️ Safe Zone (Gambar 3)</span>
     </button>
 
+    <!-- Tombol Khusus: Putar Video MP4 Final (Muncul otomatis setelah video selesai dirender) -->
+    {#if renderedTask}
+      <button
+        type="button"
+        onclick={() => (showRenderedVideo = !showRenderedVideo)}
+        class="h-7 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer {showRenderedVideo
+          ? 'bg-[#B6F36B]/20 border-[#B6F36B] text-[#B6F36B] shadow-sm ring-1 ring-[#B6F36B]/40'
+          : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+        title="Tampilkan video MP4 final hasil render (100% native video tanpa iframe)"
+      >
+        <span>{showRenderedVideo ? '🟢 Video MP4 Final' : '▶️ Lihat Hasil MP4'}</span>
+      </button>
+    {/if}
+
     <!-- Kalibrasi Sinkronisasi Subtitle Manual Presisi -->
     <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#191C20] border border-[#292E34] text-xs">
       <span class="text-[#9299A3] flex items-center gap-1 font-medium">
@@ -535,31 +567,48 @@
           </div>
         {/if}
 
-        <!-- Wadah Iframe Video YouTube Tunggal (Smooth, Tanpa Re-Mount Saat Ganti Mode) -->
+        <!-- Wadah Video: Mendukung Mode Bersih 100% Bebas YouTube UI & Hasil Render MP4 Final -->
         <div
           class="relative overflow-hidden transition-all duration-300 flex items-center justify-center {isFitBlur
             ? 'w-full aspect-video z-15 shadow-[0_10px_35px_rgba(0,0,0,0.9)] border-y border-white/10 bg-black'
             : 'w-full h-full z-10'}"
         >
-          <iframe
-            bind:this={iframeRef}
-            src={embedUrl}
-            onload={handleIframeLoad}
-            title="Video Klip: {clip.title}"
-            class="absolute pointer-events-none transition-all duration-200"
-            style={isFitBlur
-              ? 'width: 100%; height: 100%; min-width: 100%; max-width: 100%; left: 50%; top: 50%; transform: translate(-50%, -50%);'
-              : `height: 100%; width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; min-width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; max-width: none; left: calc(50% + ${clip.panOffset}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel});`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          ></iframe>
+          {#if showRenderedVideo && renderedTask?.downloadUrl}
+            <!-- Mode Video MP4 Riil Hasil Render Final: 100% Native HTML5 Video -->
+            <video
+              src={renderedTask.downloadUrl}
+              autoplay
+              loop
+              playsinline
+              class="w-full h-full object-cover"
+            ></video>
+          {:else}
+            <!-- Iframe Player Bebas Komponen YouTube (Controls=0 + Edge Cropping Presisi) -->
+            <iframe
+              bind:this={iframeRef}
+              src={embedUrl}
+              onload={handleIframeLoad}
+              title="Video Klip: {clip.title}"
+              class="absolute pointer-events-none transition-all duration-200"
+              style={isFitBlur
+                ? `width: 130%; height: 130%; min-width: 130%; max-width: none; left: calc(50% + ${clip.panOffset || 0}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel || 1.0});`
+                : `height: 100%; width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; min-width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; max-width: none; left: calc(50% + ${clip.panOffset}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel});`}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            ></iframe>
 
-          <!-- Fallback Poster jika iframe lambat termuat -->
-          {#if workspace.activeVideo?.thumbnailUrl}
-            <img
-              src={workspace.activeVideo.thumbnailUrl}
-              alt="Preview Thumbnail"
-              class="absolute inset-0 w-full h-full object-cover filter brightness-90 -z-10"
-            />
+            <!-- Vignette halus di tepi frame 16:9 agar batas benar-benar bersih tanpa celah UI YouTube -->
+            {#if isFitBlur}
+              <div class="absolute inset-0 pointer-events-none z-16 shadow-[inset_0_0_12px_rgba(0,0,0,0.8)] border border-white/5"></div>
+            {/if}
+
+            <!-- Fallback Poster jika iframe lambat termuat -->
+            {#if workspace.activeVideo?.thumbnailUrl}
+              <img
+                src={workspace.activeVideo.thumbnailUrl}
+                alt="Preview Thumbnail"
+                class="absolute inset-0 w-full h-full object-cover filter brightness-90 -z-10"
+              />
+            {/if}
           {/if}
         </div>
 
