@@ -8,6 +8,7 @@ coverage/
 .env*
 !.env.example
 static/exports/*.mp4
+static/cache/*.mp4
 output_clips/
 rendered_output/
 __pycache__/

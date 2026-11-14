@@ -2,7 +2,6 @@
   import type { ClipCandidate, FramingLayout, BackgroundStyle } from '#lib/types';
   import { workspace } from '#lib/state/workspace.svelte';
   import { formatTimecode } from '#lib/utils/clippingRules';
-  import { onDestroy, onMount } from 'svelte';
   import {
     Play,
     Pause,
@@ -13,6 +12,7 @@
     VolumeX,
     Sparkles,
     ShieldCheck,
+    Loader2,
   } from 'lucide-svelte';
 
   let {
@@ -45,11 +45,11 @@
   // Offset manual untuk kalibrasi sinkronisasi subtitle (-3.0s s/d +3.0s)
   let subtitleOffset = $state(0);
 
-  let iframeRef: HTMLIFrameElement | null = $state(null);
-  let animFrameId: number | null = null;
-  let lastFrameTime = 0;
-  let lastSentSeek = -1;
-  let originHost = $state('http://localhost:3001');
+  // Native HTML5 Video Element References (100% bebas dari komponen / iframe YouTube)
+  let videoRef: HTMLVideoElement | null = $state(null);
+  let bgVideoRef: HTMLVideoElement | null = $state(null);
+  let previewVideoUrl = $state<string | null>(null);
+  let isLoadingPreview = $state(false);
 
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
@@ -64,11 +64,9 @@
   // Active caption segment based on effectiveTime (dengan proteksi jeda bicara antar kalimat)
   const currentSegment = $derived.by(() => {
     if (!clip.captions || clip.captions.length === 0) return null;
-    // 1. Cek kecocokan waktu langsung
     const exact = clip.captions.find((c) => effectiveTime >= c.start && effectiveTime <= c.end);
     if (exact) return exact;
 
-    // 2. Jika di jeda singkat sebelum kalimat berikutnya, pertahankan kalimat sebelumnya
     for (let i = 0; i < clip.captions.length; i++) {
       const c = clip.captions[i];
       if (effectiveTime < c.start) {
@@ -79,9 +77,6 @@
   });
 
   // Posisi vertikal caption strictly mematuhi batas Safe Zone Reels 9:16 Gambar 3:
-  // - Top: di bawah batas 220px (top: 13%)
-  // - Bottom: di atas batas 450px (bottom: 25%) bebas dari tombol interaksi & teks caption akun
-  // - Middle: di bawah video 16:9 (top: 68%) pada mode fit_blur agar tidak menutupi wajah pembicara
   const captionPosClass = $derived.by(() => {
     const pos = clip.captionPosition || 'bottom';
     if (pos === 'top') return 'top-[13%] inset-x-4';
@@ -96,14 +91,10 @@
     if (!currentSegment?.words || currentSegment.words.length === 0) return null;
     const allWords = currentSegment.words;
     const maxLines = clip.captionMaxLines || 2;
-    // 1 Baris: ~3 kata
-    // 2 Baris: ~6 kata
-    // 3 Baris: ~9 kata
     const targetWordCount = maxLines === 1 ? 3 : maxLines === 3 ? 9 : 6;
 
     if (allWords.length <= targetWordCount) return allWords;
 
-    // Cari kata yang sedang aktif dibicarakan
     let activeIdx = allWords.findIndex((w) => effectiveTime >= w.start && effectiveTime <= w.end);
     if (activeIdx === -1) {
       activeIdx = allWords.findIndex((w) => effectiveTime < w.start);
@@ -115,34 +106,46 @@
     return allWords.slice(startIdx, startIdx + targetWordCount);
   });
 
-  // Kata yang sedang tepat aktif bersuara saat ini
   const activeWord = $derived(
     currentSegment?.words?.find((w) => effectiveTime >= w.start && effectiveTime <= w.end) || null
   );
 
-  // Source URL untuk video YouTube embed 100% bersih tanpa komponen antarmuka YouTube (tanpa scrubber bar merah, tombol play/skip, judul, logo, dsb)
-  const embedUrl = $derived.by(() => {
-    const originParam = originHost
-      ? `&origin=${encodeURIComponent(originHost)}&widget_referrer=${encodeURIComponent(originHost)}`
-      : '';
-    // controls=0: Menghilangkan total kontrol bar bawah, seekbar merah, logo YouTube, durasi, volume, CC, & settings
-    // modestbranding=1: Menghilangkan watermark logo YouTube besar
-    // rel=0: Tidak menampilkan video rekomendasi channel lain
-    // iv_load_policy=3: Mematikan pop-up anotasi / video card
-    // fs=0: Mematikan tombol fullscreen bawaan
-    // disablekb=1: Mematikan shortcut keyboard bawaan YouTube
-    // playsinline=1: Memastikan video diputar inline
-    // Tanpa playlist: Menghilangkan tombol next/prev video di tengah
-    return `https://www.youtube.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&enablejsapi=1${originParam}`;
-  });
+  // Ambil file MP4 potongan segmen bersih tanpa komponen YouTube via backend
+  $effect(() => {
+    const vId = youtubeVideoId;
+    const start = clip.startTime;
+    const end = clip.endTime;
+    let isCancelled = false;
 
-  // Cek apakah video MP4 hasil render final sudah tersedia untuk klip ini
-  const renderedTask = $derived(
-    workspace.renderTasks.find(
-      (t) => t.clipId === clip.id && t.status === 'completed' && t.downloadUrl
-    )
-  );
-  let showRenderedVideo = $state(false);
+    isLoadingPreview = true;
+    previewVideoUrl = null;
+
+    fetch('/api/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        videoId: vId,
+        startTime: start,
+        endTime: end,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isCancelled && data.success && data.url) {
+          previewVideoUrl = data.url;
+          currentTime = start;
+          isPlaying = true;
+        }
+      })
+      .catch((e) => console.warn('Preview video error:', e))
+      .finally(() => {
+        if (!isCancelled) isLoadingPreview = false;
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  });
 
   function setFramingLayout(layout: FramingLayout) {
     workspace.updateClip({
@@ -158,36 +161,26 @@
     });
   }
 
-  function sendIframeCommand(func: string, args: any = '') {
-    if (iframeRef && iframeRef.contentWindow) {
-      iframeRef.contentWindow.postMessage(
-        JSON.stringify({
-          event: 'command',
-          func,
-          args: args === undefined ? '' : args,
-        }),
-        '*'
-      );
-    }
-  }
-
   function enableSound() {
     isMuted = false;
     volume = 100;
-    sendIframeCommand('unMute', '');
-    sendIframeCommand('setVolume', [100]);
-    sendIframeCommand('playVideo', '');
+    if (videoRef) {
+      videoRef.muted = false;
+      videoRef.volume = 1.0;
+    }
   }
 
   function setVolumeLevel(val: number) {
     volume = val;
     if (val === 0) {
       isMuted = true;
-      sendIframeCommand('mute', '');
+      if (videoRef) videoRef.muted = true;
     } else {
       isMuted = false;
-      sendIframeCommand('unMute', '');
-      sendIframeCommand('setVolume', [val]);
+      if (videoRef) {
+        videoRef.muted = false;
+        videoRef.volume = val / 100;
+      }
     }
   }
 
@@ -196,163 +189,73 @@
       enableSound();
     } else {
       isMuted = true;
-      sendIframeCommand('mute', '');
+      if (videoRef) videoRef.muted = true;
     }
   }
 
-  // Sinkronisasi Real-Time dengan Mesin Playback 60fps & YouTube PostMessage Handshake
-  onMount(() => {
-    if (typeof window !== 'undefined') {
-      originHost = window.location.origin;
-    }
-
-    const handleMessage = (e: MessageEvent) => {
-      if (!e.origin.includes('youtube')) return;
-      try {
-        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        if (data && data.event === 'infoDelivery' && data.info) {
-          // Detik video langsung dari pemutar YouTube internal
-          if (typeof data.info.currentTime === 'number') {
-            const ytTime = data.info.currentTime;
-            // Kalibrasi playhead jika perbedaan dengan jam internal > 0.25 detik
-            if (Math.abs(currentTime - ytTime) > 0.25) {
-              currentTime = ytTime;
-              lastSentSeek = ytTime;
-            }
-            if (ytTime >= clip.endTime) {
-              restartClip();
-            }
-          }
-
-          // Player state: 1 = Playing, 2 = Paused, 3 = Buffering, 0 = Ended
-          if (typeof data.info.playerState === 'number') {
-            if (data.info.playerState === 1 && !isPlaying) {
-              isPlaying = true;
-            } else if (data.info.playerState === 2 && isPlaying) {
-              isPlaying = false;
-            } else if (data.info.playerState === 0) {
-              restartClip();
-            }
-          }
-        }
-      } catch {
-        // Abaikan pesan non-JSON dari ekstensi browser
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    // Kirim sinyal listening secara berkala agar YouTube iframe selalu mengirim timecode infoDelivery
-    const initInterval = setInterval(() => {
-      if (iframeRef && iframeRef.contentWindow) {
-        iframeRef.contentWindow.postMessage(
-          JSON.stringify({
-            event: 'listening',
-            id: 1,
-            channel: 'widget',
-          }),
-          '*'
-        );
-      }
-    }, 500);
-
-    // Loop 60fps clock internal untuk memastikan playhead dan teks bergerak 100% mulus sinkron
-    lastFrameTime = performance.now();
-    const tick = () => {
-      const now = performance.now();
-      const dt = (now - lastFrameTime) / 1000;
-      lastFrameTime = now;
-
-      if (isPlaying) {
-        const nextTime = currentTime + dt;
-        currentTime = nextTime;
-        lastSentSeek = nextTime;
-
-        if (currentTime >= clip.endTime) {
-          restartClip();
-        }
-      }
-
-      animFrameId = requestAnimationFrame(tick);
-    };
-
-    animFrameId = requestAnimationFrame(tick);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-      clearInterval(initInterval);
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
-    };
-  });
-
-  // Saat klip berganti, reset playhead ke detik mulai
-  $effect(() => {
-    const start = clip.startTime;
-    currentTime = start;
-    lastSentSeek = start;
-    isPlaying = true;
-    sendIframeCommand('seekTo', [start, true]);
-    sendIframeCommand('playVideo', '');
-  });
-
-  // Saat user men-scrub timeline atau melompat ke kalimat di transkrip, sinkronkan video YouTube langsung
-  $effect(() => {
-    const target = currentTime;
-    if (Math.abs(target - lastSentSeek) > 0.35) {
-      lastSentSeek = target;
-      sendIframeCommand('seekTo', [target, true]);
-    }
-  });
-
-  $effect(() => {
-    if (isPlaying) {
-      sendIframeCommand('playVideo', '');
-    } else {
-      sendIframeCommand('pauseVideo', '');
-    }
-  });
-
-  onDestroy(() => {
-    if (animFrameId) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
-  });
-
   function togglePlay() {
     isPlaying = !isPlaying;
-    sendIframeCommand(isPlaying ? 'playVideo' : 'pauseVideo', '');
-    if (isPlaying && !isMuted) {
-      sendIframeCommand('unMute', '');
-      sendIframeCommand('setVolume', [volume]);
+    if (videoRef) {
+      if (isPlaying) {
+        videoRef.play().catch(() => {});
+        if (bgVideoRef) bgVideoRef.play().catch(() => {});
+      } else {
+        videoRef.pause();
+        if (bgVideoRef) bgVideoRef.pause();
+      }
+    }
+    if (isMuted) {
+      enableSound();
     }
   }
 
   function restartClip() {
     currentTime = clip.startTime;
-    lastSentSeek = clip.startTime;
-    isPlaying = true;
-    sendIframeCommand('seekTo', [clip.startTime, true]);
-    sendIframeCommand('playVideo', '');
-    if (!isMuted) {
-      sendIframeCommand('unMute', '');
-      sendIframeCommand('setVolume', [volume]);
+    if (videoRef) {
+      videoRef.currentTime = 0;
+      if (bgVideoRef) bgVideoRef.currentTime = 0;
+      videoRef.play().catch(() => {});
+      if (bgVideoRef) bgVideoRef.play().catch(() => {});
+      isPlaying = true;
     }
   }
 
-  function handleIframeLoad() {
-    setTimeout(() => {
-      sendIframeCommand('seekTo', [clip.startTime, true]);
-      if (!isMuted) {
-        sendIframeCommand('unMute', '');
-        sendIframeCommand('setVolume', [volume]);
+  function handleTimeUpdate() {
+    if (videoRef && isPlaying) {
+      currentTime = clip.startTime + videoRef.currentTime;
+      if (bgVideoRef && Math.abs(bgVideoRef.currentTime - videoRef.currentTime) > 0.25) {
+        bgVideoRef.currentTime = videoRef.currentTime;
       }
-      sendIframeCommand('playVideo', '');
-    }, 400);
+      if (currentTime >= clip.endTime) {
+        restartClip();
+      }
+    }
   }
+
+  // Scrubbing sinkronisasi saat user klik timeline atau transkrip
+  $effect(() => {
+    const target = currentTime;
+    if (videoRef && videoRef.duration) {
+      const relTarget = Math.max(0, Math.min(videoRef.duration, target - clip.startTime));
+      if (Math.abs(videoRef.currentTime - relTarget) > 0.25) {
+        videoRef.currentTime = relTarget;
+        if (bgVideoRef) bgVideoRef.currentTime = relTarget;
+      }
+    }
+  });
+
+  // Sinkronisasi status Play/Pause
+  $effect(() => {
+    if (videoRef) {
+      if (isPlaying && videoRef.paused) {
+        videoRef.play().catch(() => {});
+        if (bgVideoRef) bgVideoRef.play().catch(() => {});
+      } else if (!isPlaying && !videoRef.paused) {
+        videoRef.pause();
+        if (bgVideoRef) bgVideoRef.pause();
+      }
+    }
+  });
 </script>
 
 <div class="flex-1 bg-[#0D0F11] flex flex-col items-center justify-between p-4 relative overflow-hidden select-none">
@@ -553,7 +456,19 @@
             {:else if activeBackgroundStyle === 'dark_gradient'}
               <div class="absolute inset-0 bg-gradient-to-b from-[#181C22] via-[#0B0D0F] to-[#14171A]"></div>
             {:else}
-              {#if workspace.activeVideo?.thumbnailUrl}
+              <!-- Latar Belakang Video Bergerak Sinkron Di-blur & Digelapkan (Gambar 2 Nyata!) -->
+              {#if previewVideoUrl}
+                <video
+                  bind:this={bgVideoRef}
+                  src={previewVideoUrl}
+                  muted
+                  playsinline
+                  loop
+                  class="absolute inset-0 w-full h-full object-cover scale-150 filter blur-xl {activeBackgroundStyle === 'extra_dark_blur'
+                    ? 'brightness-20 contrast-125'
+                    : 'brightness-40 contrast-110'} transition-all"
+                ></video>
+              {:else if workspace.activeVideo?.thumbnailUrl}
                 <img
                   src={workspace.activeVideo.thumbnailUrl}
                   alt="Latar Belakang Blur"
@@ -567,48 +482,45 @@
           </div>
         {/if}
 
-        <!-- Wadah Video: Mendukung Mode Bersih 100% Bebas YouTube UI & Hasil Render MP4 Final -->
+        <!-- Wadah Video Utama (100% Native HTML5 Video - Bebas dari Segala Komponen YouTube) -->
         <div
           class="relative overflow-hidden transition-all duration-300 flex items-center justify-center {isFitBlur
             ? 'w-full aspect-video z-15 shadow-[0_10px_35px_rgba(0,0,0,0.9)] border-y border-white/10 bg-black'
             : 'w-full h-full z-10'}"
         >
-          {#if showRenderedVideo && renderedTask?.downloadUrl}
-            <!-- Mode Video MP4 Riil Hasil Render Final: 100% Native HTML5 Video -->
+          {#if previewVideoUrl}
+            <!-- 100% Native Video: Tidak Ada Iframe, Tidak Ada Judul YouTube, Tidak Ada Logo, Tidak Ada Watermark -->
             <video
-              src={renderedTask.downloadUrl}
+              bind:this={videoRef}
+              src={previewVideoUrl}
               autoplay
-              loop
+              muted={isMuted}
               playsinline
-              class="w-full h-full object-cover"
+              loop
+              ontimeupdate={handleTimeUpdate}
+              onended={restartClip}
+              class="w-full h-full pointer-events-none transition-transform duration-100 {isFitBlur ? 'object-contain' : 'object-cover'}"
+              style="transform: scale({clip.zoomLevel || 1.0}) translateX({clip.panOffset || 0}%);"
             ></video>
           {:else}
-            <!-- Iframe Player Bebas Komponen YouTube (Controls=0 + Edge Cropping Presisi) -->
-            <iframe
-              bind:this={iframeRef}
-              src={embedUrl}
-              onload={handleIframeLoad}
-              title="Video Klip: {clip.title}"
-              class="absolute pointer-events-none transition-all duration-200"
-              style={isFitBlur
-                ? `width: 130%; height: 130%; min-width: 130%; max-width: none; left: calc(50% + ${clip.panOffset || 0}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel || 1.0});`
-                : `height: 100%; width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; min-width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; max-width: none; left: calc(50% + ${clip.panOffset}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel});`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            ></iframe>
-
-            <!-- Vignette halus di tepi frame 16:9 agar batas benar-benar bersih tanpa celah UI YouTube -->
-            {#if isFitBlur}
-              <div class="absolute inset-0 pointer-events-none z-16 shadow-[inset_0_0_12px_rgba(0,0,0,0.8)] border border-white/5"></div>
-            {/if}
-
-            <!-- Fallback Poster jika iframe lambat termuat -->
+            <!-- Sementara Video MP4 Diproses (~1 Detik), Tampilkan Poster Bersih dengan Indikator Loading -->
             {#if workspace.activeVideo?.thumbnailUrl}
               <img
                 src={workspace.activeVideo.thumbnailUrl}
-                alt="Preview Thumbnail"
-                class="absolute inset-0 w-full h-full object-cover filter brightness-90 -z-10"
+                alt="Memuat Video"
+                class="w-full h-full object-cover filter brightness-85"
               />
             {/if}
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-20 text-[#E7E9EC]">
+              <Loader2 class="w-6 h-6 text-[#B6F36B] animate-spin" />
+              <span class="text-xs font-semibold">Memuat video preview bersih...</span>
+              <span class="text-[10px] text-[#9299A3]">100% bebas watermark & komponen YouTube</span>
+            </div>
+          {/if}
+
+          <!-- Inner shadow halus di tepi frame 16:9 agar batas benar-benar bersih dan mewah -->
+          {#if isFitBlur}
+            <div class="absolute inset-0 pointer-events-none z-16 border border-white/10 shadow-[inset_0_0_12px_rgba(0,0,0,0.8)]"></div>
           {/if}
         </div>
 
