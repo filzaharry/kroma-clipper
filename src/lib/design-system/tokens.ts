@@ -35,12 +35,11 @@ export const TYPOGRAPHY = {
 
 export const WORKSPACE_VIEWS = [
   { id: 'library', label: '1. Media Ingest', path: '/library', icon: 'Film' },
-  { id: 'rules', label: '2. Rule Config', path: '/rules', icon: 'Sliders' },
-  { id: 'analysis', label: '3. Heuristic Engine', path: '/analysis', icon: 'Cpu' },
-  { id: 'candidates', label: '4. Clip Candidates', path: '/candidates', icon: 'Layers' },
-  { id: 'editor', label: '5. Clip Editor (NLE)', path: '/editor', icon: 'Scissors' },
-  { id: 'export', label: '6. Render Queue', path: '/export', icon: 'Download' },
-  { id: 'publish', label: '7. Social Schedule', path: '/publish', icon: 'Calendar' },
+  { id: 'analysis', label: '2. Heuristic Engine', path: '/analysis', icon: 'Cpu' },
+  { id: 'candidates', label: '3. Clip Candidates', path: '/candidates', icon: 'Layers' },
+  { id: 'editor', label: '4. Clip Editor (NLE)', path: '/editor', icon: 'Scissors' },
+  { id: 'export', label: '5. Render Queue', path: '/export', icon: 'Download' },
+  { id: 'publish', label: '6. Social Schedule', path: '/publish', icon: 'Calendar' },
 ] as const;
 
 export type WorkspaceViewId = (typeof WORKSPACE_VIEWS)[number]['id'];

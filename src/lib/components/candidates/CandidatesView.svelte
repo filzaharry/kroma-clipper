@@ -8,14 +8,10 @@
     Scissors,
     Download,
     Check,
-    X,
     Sparkles,
     Volume2,
     Smartphone,
-    Square,
-    Maximize2,
     Search,
-    Filter,
     ArrowRight,
     SquarePlay,
     Play,
@@ -35,7 +31,6 @@
   // State tracking download
   let downloadingClipId = $state<string | null>(null);
   let downloadedClipIds = $state<Record<string, boolean>>({});
-  let isDownloadingAll = $state(false);
 
   const filteredCandidates = $derived(
     workspace.candidates.filter((clip) => {
@@ -86,23 +81,6 @@
       downloadingClipId = null;
     }
   }
-
-  async function handleDownloadAllClips() {
-    if (isDownloadingAll) return;
-    isDownloadingAll = true;
-    const targetClips = filteredCandidates.length > 0 ? filteredCandidates : workspace.candidates;
-
-    for (const clip of targetClips) {
-      try {
-        await workspace.quickDownloadClip(clip);
-        downloadedClipIds = { ...downloadedClipIds, [clip.id]: true };
-      } catch (e) {
-        console.error('Batch download clip error:', e);
-      }
-    }
-
-    isDownloadingAll = false;
-  }
 </script>
 
 <div class="flex-1 flex flex-col overflow-y-auto bg-[#111315] p-6 lg:p-8">
@@ -111,7 +89,7 @@
     <div>
       <div class="flex items-center gap-2">
         <h1 class="text-xl font-semibold text-[#E7E9EC] tracking-tight">
-          4. Pilihan Klip Viral ({workspace.candidates.length})
+          3. Pilihan Klip Viral ({workspace.candidates.length})
         </h1>
         {#if workspace.candidates.length > 0}
           <span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] border border-[#B6F36B]/30">
@@ -124,30 +102,22 @@
       </p>
     </div>
 
-    <!-- Top Action Buttons: Download All & Filters -->
+    <!-- Top Action Bar: Search & Aspect Ratio Filters -->
     {#if workspace.candidates.length > 0}
       <div class="flex flex-wrap items-center gap-2.5">
-        <!-- TOMBOL UNDUH SEMUA SEKALIGUS -->
-        <button
-          type="button"
-          onclick={handleDownloadAllClips}
-          disabled={isDownloadingAll}
-          class="h-9 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-70"
-          title="Download semua klip yang ada di daftar ini sekaligus"
-        >
-          {#if isDownloadingAll}
-            <Loader2 class="w-3.5 h-3.5 animate-spin" />
-            <span>Sedang Mengunduh Semua...</span>
-          {:else}
-            <Download class="w-4 h-4 stroke-[2.4]" />
-            <span>⬇️ Unduh Semua Klip ({workspace.candidates.length} Video)</span>
-          {/if}
-        </button>
-
         <!-- Search -->
         <div class="relative">
           <Search class="w-3.5 h-3.5 text-[#626871] absolute left-2.5 top-2.5" />
           <input
+            type="text"
+            placeholder="Cari kutipan, kata kunci..."
+            bind:value={searchQuery}
+            class="h-9 pl-8 pr-3 text-xs bg-[#191C20] border border-[#292E34] rounded-lg text-[#E7E9EC] placeholder-[#626871] focus:border-[#B6F36B] focus:outline-none w-48"
+          />
+        </div>
+
+        <!-- Aspect Ratio Filter Tabs -->
+        <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
             type="text"
             placeholder="Cari kutipan, kata kunci..."
             bind:value={searchQuery}
@@ -246,17 +216,11 @@
   {:else}
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
       {#each filteredCandidates as clip (clip.id)}
-        {@const isApproved = clip.status === 'approved'}
-        {@const isRejected = clip.status === 'rejected'}
         {@const isDownloadingThis = downloadingClipId === clip.id}
         {@const isDownloadedThis = downloadedClipIds[clip.id]}
 
         <div
-          class="p-5 rounded-xl border transition-all {isApproved
-            ? 'bg-[#191C20] border-[#B6F36B]/60 shadow-md'
-            : isRejected
-              ? 'bg-[#191C20] border-[#292E34] opacity-50'
-              : 'bg-[#191C20] border-[#292E34] hover:border-[#383F47] shadow-sm'}"
+          class="p-5 rounded-xl border border-[#292E34] hover:border-[#383F47] bg-[#191C20] shadow-sm transition-all"
         >
           <!-- Header: Title & Viral Score -->
           <div class="flex items-start justify-between gap-3 mb-3">
@@ -265,11 +229,6 @@
                 <span class="text-sm font-bold text-[#E7E9EC] tracking-tight">
                   {clip.title}
                 </span>
-                {#if isRejected}
-                  <span class="text-[10px] font-mono text-[#EF4444] px-1.5 py-0.5 rounded bg-[#111315] border border-[#EF4444]/30">
-                    DITOLAK
-                  </span>
-                {/if}
               </div>
 
               <div class="flex items-center gap-2 text-xs text-[#9299A3] mt-1">
@@ -346,57 +305,30 @@
           </div>
 
           <!-- Action Bar: Direct Download, Preview, Edit -->
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-[#292E34]">
-            <!-- Status Setuju/Tolak -->
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick={() => workspace.approveClip(clip.id)}
-                class="h-8 px-2.5 rounded-md border transition-colors flex items-center gap-1 text-xs cursor-pointer {isApproved
-                  ? 'bg-[#B6F36B]/15 text-[#B6F36B] border-[#B6F36B]/40 font-semibold'
-                  : 'bg-[#20242A] text-[#9299A3] border-[#292E34] hover:text-[#E7E9EC]'}"
-              >
-                <Check class="w-3.5 h-3.5" />
-                <span>{isApproved ? 'Disetujui' : 'Setujui'}</span>
-              </button>
+          <div class="flex items-center justify-end gap-2.5 pt-3.5 border-t border-[#292E34]">
+            <!-- Tombol Preview Modal -->
+            <button
+              type="button"
+              onclick={() => handleOpenPreviewModal(clip)}
+              class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Tonton preview hasil editan klip ini"
+            >
+              <Eye class="w-3.5 h-3.5 text-[#B6F36B]" />
+              <span>Preview</span>
+            </button>
 
-              <button
-                type="button"
-                onclick={() => workspace.rejectClip(clip.id)}
-                class="h-8 px-2 rounded-md border transition-colors flex items-center gap-1 text-xs cursor-pointer {isRejected
-                  ? 'bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/40'
-                  : 'bg-[#20242A] text-[#626871] border-[#292E34] hover:text-[#EF4444]'}"
-                title="Tolak Klip"
-              >
-                <X class="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <!-- Tombol Buka di Editor -->
+            <button
+              type="button"
+              onclick={() => handleOpenEditor(clip)}
+              class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Buka pengeditan subtitle dan framing"
+            >
+              <Scissors class="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
 
-            <!-- Main Actions: Preview, Edit, and Direct Download -->
-            <div class="flex items-center gap-2">
-              <!-- Tombol Preview Modal -->
-              <button
-                type="button"
-                onclick={() => handleOpenPreviewModal(clip)}
-                class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Tonton preview hasil editan klip ini"
-              >
-                <Eye class="w-3.5 h-3.5 text-[#B6F36B]" />
-                <span>Preview</span>
-              </button>
-
-              <!-- Tombol Buka di Editor -->
-              <button
-                type="button"
-                onclick={() => handleOpenEditor(clip)}
-                class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Buka pengeditan subtitle dan framing"
-              >
-                <Scissors class="w-3.5 h-3.5" />
-                <span>Edit</span>
-              </button>
-
-              <!-- TOMBOL UNDUH LANGSUNG (MP4) -->
+            <!-- TOMBOL UNDUH LANGSUNG (MP4) -->
               <button
                 type="button"
                 onclick={() => handleDirectDownload(clip)}

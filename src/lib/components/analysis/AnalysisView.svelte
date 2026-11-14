@@ -59,6 +59,18 @@
       goto(`/editor?clipId=${workspace.candidates[0].id}`);
     }
   }
+
+  // Otomatis jalankan analisis saat halaman dibuka jika belum dianalisis
+  $effect(() => {
+    if (
+      workspace.activeVideo &&
+      !workspace.isAnalyzing &&
+      workspace.analysisProgress === 0 &&
+      workspace.candidates.length === 0
+    ) {
+      workspace.runAnalysis();
+    }
+  });
 </script>
 
 <div class="flex-1 flex flex-col overflow-y-auto bg-[#111315] p-6 lg:p-8">
@@ -66,7 +78,7 @@
   <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
       <h1 class="text-xl font-semibold text-[#E7E9EC] tracking-tight">
-        3. Analisis AI & Deteksi Hook
+        2. Analisis AI & Deteksi Hook
       </h1>
       <p class="text-xs text-[#9299A3] mt-1">
         Memindai video berdasarkan batas durasi ({rules.minDuration}d – {rules.maxDuration}d), dinamika energi vokal, dan kalimat pembuka viral.

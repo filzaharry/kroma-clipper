@@ -8,12 +8,11 @@
 
   const stageLabel = $derived.by(() => {
     if (pathname.startsWith('/library')) return '1. Input Link YouTube';
-    if (pathname.startsWith('/rules')) return '2. Aturan Klip';
-    if (pathname.startsWith('/analysis')) return '3. Analisis AI';
-    if (pathname.startsWith('/editor')) return '5. Editor Klip (NLE)';
-    if (pathname.startsWith('/export')) return '6. Antrean Render';
-    if (pathname.startsWith('/publish')) return '7. Jadwal Medsos';
-    return `4. Pilihan Klip (${workspace.candidates.length})`;
+    if (pathname.startsWith('/analysis')) return '2. Analisis AI';
+    if (pathname.startsWith('/editor')) return '4. Editor Klip (NLE)';
+    if (pathname.startsWith('/export')) return '5. Antrean Render';
+    if (pathname.startsWith('/publish')) return '6. Jadwal Medsos';
+    return `3. Pilihan Klip (${workspace.candidates.length})`;
   });
 
   function handleAction() {

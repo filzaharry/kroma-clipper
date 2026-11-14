@@ -44,6 +44,10 @@
       workspace.addVideo(data.video);
       youtubeUrl = '';
       errorMessage = null;
+
+      // Langsung masuk ke halaman analisis dan jalankan analisis AI
+      workspace.runAnalysis();
+      goto('/analysis');
     } catch (err: any) {
       errorMessage = err?.message || 'Terjadi kesalahan saat memproses link YouTube';
     } finally {
@@ -68,10 +72,13 @@
     {#if workspace.activeVideo}
       <button
         type="button"
-        onclick={() => goto('/rules')}
-        class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded transition-colors flex items-center gap-2 self-start md:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shrink-0 cursor-pointer"
+        onclick={() => {
+          workspace.runAnalysis();
+          goto('/analysis');
+        }}
+        class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded transition-colors flex items-center gap-2 self-start md:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shrink-0 cursor-pointer shadow-sm"
       >
-        <span>Lanjut ke Aturan Klip</span>
+        <span>⚡ Lanjut ke Analisis AI</span>
         <ArrowRight class="w-3.5 h-3.5" />
       </button>
     {/if}
@@ -219,26 +226,13 @@
                   onclick={(e) => {
                     e.stopPropagation();
                     workspace.selectVideo(vid);
-                    goto('/rules');
-                  }}
-                  class="h-8 px-3 text-xs font-medium text-[#E7E9EC] bg-[#111315] hover:bg-[#20242A] border border-[#292E34] hover:border-[#383F47] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B]"
-                >
-                  <span>Atur Aturan</span>
-                  <ArrowRight class="w-3 h-3 text-[#B6F36B]" />
-                </button>
-
-                <button
-                  type="button"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    workspace.selectVideo(vid);
                     workspace.runAnalysis();
                     goto('/analysis');
                   }}
-                  class="h-8 px-3 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50"
+                  class="h-8 px-3.5 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shadow-sm"
                 >
                   <Sparkles class="w-3.5 h-3.5 fill-current" />
-                  <span>⚡ Analisis AI</span>
+                  <span>⚡ Analisis Video Ini</span>
                 </button>
               </div>
             </div>
