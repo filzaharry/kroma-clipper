@@ -7,15 +7,12 @@
     Play,
     Pause,
     RotateCcw,
-    Sparkles,
     Smartphone,
-    Video,
-    ShieldAlert,
-    Grid,
+    Maximize2,
     Volume2,
     VolumeX,
-    Maximize2,
-    Check,
+    Sparkles,
+    RotateCw,
   } from 'lucide-svelte';
 
   let {
@@ -37,71 +34,163 @@
   // Mode framing: 'vertical' (Crop 9:16 Vertikal) vs 'landscape' (16:9 Layar Penuh)
   let viewLayout = $state<'vertical' | 'landscape'>('vertical');
 
-  // Suara: Default true (bisu) agar browser mengizinkan autoplay video bergerak tanpa diblokir
-  let isMuted = $state(true);
+  // Suara & Volume
+  let isMuted = $state(false);
+  let volume = $state(100);
+
+  // Offset manual untuk kalibrasi sinkronisasi subtitle (-3.0s s/d +3.0s)
+  let subtitleOffset = $state(0);
 
   let iframeRef: HTMLIFrameElement | null = $state(null);
+  let isYtBuffering = $state(false);
+  let lastServerTime = 0;
+  let lastSyncTimestamp = performance.now();
   let animFrameId: number | null = null;
-  let lastTime = performance.now();
-
-  // Pre-calculated static audio visualizer heights
-  const VISUALIZER_BARS = [24, 45, 68, 85, 92, 70, 54, 38, 72, 88, 64, 35, 52, 78, 60, 40];
-
-  // Active caption segment based on currentTime
-  const currentSegment = $derived(
-    clip.captions.find((c) => currentTime >= c.start && currentTime <= c.end) || clip.captions[0]
-  );
 
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
     workspace.activeVideo?.id?.replace(/^yt-/, '') || 'wsCBMCa_DBA'
   );
 
-  // Source URL untuk video YouTube embed
-  const embedUrl = $derived(
-    `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1&rel=0`
+  // Waktu efektif subtitle setelah ditambahkan offset kalibrasi
+  const effectiveTime = $derived(currentTime + subtitleOffset);
+
+  // Active caption segment based on effectiveTime
+  const currentSegment = $derived(
+    clip.captions.find((c) => effectiveTime >= c.start && effectiveTime <= c.end) || clip.captions[0]
   );
 
-  function sendIframeCommand(func: string, args: any[] = []) {
+  // Source URL untuk video YouTube embed
+  const embedUrl = $derived(
+    `https://www.youtube-nocookie.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1&rel=0`
+  );
+
+  function sendIframeCommand(func: string, args: any = '') {
     if (iframeRef && iframeRef.contentWindow) {
       iframeRef.contentWindow.postMessage(
         JSON.stringify({
           event: 'command',
           func,
-          args,
+          args: args === undefined ? '' : args,
         }),
         '*'
       );
     }
   }
 
+  export function enableSound() {
+    isMuted = false;
+    volume = 100;
+    sendIframeCommand('unMute', '');
+    sendIframeCommand('setVolume', [100]);
+    sendIframeCommand('playVideo', '');
+  }
+
+  function setVolumeLevel(val: number) {
+    volume = val;
+    if (val === 0) {
+      isMuted = true;
+      sendIframeCommand('mute', '');
+    } else {
+      isMuted = false;
+      sendIframeCommand('unMute', '');
+      sendIframeCommand('setVolume', [val]);
+    }
+  }
+
+  function toggleMute() {
+    if (isMuted) {
+      enableSound();
+    } else {
+      isMuted = true;
+      sendIframeCommand('mute', '');
+    }
+  }
+
+  // Sinkronisasi Real-Time dengan YouTube Iframe API via PostMessage
+  onMount(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (!e.origin.includes('youtube')) return;
+      try {
+        const data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (data && data.event === 'infoDelivery' && data.info) {
+          // Detik video langsung dari pemutar YouTube internal
+          if (typeof data.info.currentTime === 'number') {
+            const ytTime = data.info.currentTime;
+            lastServerTime = ytTime;
+            lastSyncTimestamp = performance.now();
+            currentTime = ytTime;
+          }
+
+          // Player state: 1 = Playing, 2 = Paused, 3 = Buffering, 0 = Ended
+          if (typeof data.info.playerState === 'number') {
+            if (data.info.playerState === 1) {
+              isPlaying = true;
+              isYtBuffering = false;
+            } else if (data.info.playerState === 3) {
+              isYtBuffering = true;
+            } else if (data.info.playerState === 2) {
+              isPlaying = false;
+              isYtBuffering = false;
+            } else if (data.info.playerState === 0) {
+              restartClip();
+            }
+          }
+        }
+      } catch (err) {
+        // Non-JSON message from external extensions, ignore safely
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    // Initial handshake ke YouTube iframe agar mulai mengirim timecode infoDelivery
+    const initInterval = setInterval(() => {
+      if (iframeRef && iframeRef.contentWindow) {
+        iframeRef.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'listening',
+            id: 1,
+            channel: 'widget',
+          }),
+          '*'
+        );
+      }
+    }, 800);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      clearInterval(initInterval);
+    };
+  });
+
   $effect(() => {
     // When clip changes, reset playhead
     currentTime = clip.startTime;
+    lastServerTime = clip.startTime;
+    lastSyncTimestamp = performance.now();
     isPlaying = true;
   });
 
   $effect(() => {
-    if (isPlaying) {
-      sendIframeCommand('playVideo');
-      lastTime = performance.now();
-      const tick = (now: number) => {
-        const delta = (now - lastTime) / 1000;
-        lastTime = now;
-
-        const next = currentTime + delta;
-        if (next >= clip.endTime) {
-          currentTime = clip.startTime; // loop back to in-point
-          sendIframeCommand('seekTo', [clip.startTime, true]);
-        } else {
-          currentTime = next;
+    if (isPlaying && !isYtBuffering) {
+      sendIframeCommand('playVideo', '');
+      const tick = () => {
+        // Smooth interpolation between YouTube 250ms pings
+        if (lastServerTime > 0) {
+          const delta = (performance.now() - lastSyncTimestamp) / 1000;
+          const estimated = lastServerTime + delta;
+          if (estimated >= clip.endTime) {
+            restartClip();
+            return;
+          } else {
+            currentTime = estimated;
+          }
         }
-
         animFrameId = requestAnimationFrame(tick);
       };
       animFrameId = requestAnimationFrame(tick);
     } else {
-      sendIframeCommand('pauseVideo');
       if (animFrameId) {
         cancelAnimationFrame(animFrameId);
         animFrameId = null;
@@ -125,25 +214,40 @@
 
   function togglePlay() {
     isPlaying = !isPlaying;
-    sendIframeCommand(isPlaying ? 'playVideo' : 'pauseVideo');
+    sendIframeCommand(isPlaying ? 'playVideo' : 'pauseVideo', '');
+    if (isPlaying && !isMuted) {
+      sendIframeCommand('unMute', '');
+      sendIframeCommand('setVolume', [volume]);
+    }
   }
 
   function restartClip() {
     currentTime = clip.startTime;
+    lastServerTime = clip.startTime;
+    lastSyncTimestamp = performance.now();
     isPlaying = true;
     sendIframeCommand('seekTo', [clip.startTime, true]);
-    sendIframeCommand('playVideo');
+    sendIframeCommand('playVideo', '');
+    if (!isMuted) {
+      sendIframeCommand('unMute', '');
+      sendIframeCommand('setVolume', [volume]);
+    }
   }
 
-  function toggleMute() {
-    isMuted = !isMuted;
-    sendIframeCommand(isMuted ? 'mute' : 'unMute');
+  function handleIframeLoad() {
+    if (!isMuted) {
+      setTimeout(() => {
+        sendIframeCommand('unMute', '');
+        sendIframeCommand('setVolume', [volume]);
+      }, 400);
+    }
   }
 </script>
 
 <div class="flex-1 bg-[#0D0F11] flex flex-col items-center justify-between p-4 relative overflow-hidden select-none">
-  <!-- Top Bar: Layout Switcher & Audio Toggle -->
-  <div class="flex items-center gap-2.5 mb-2.5 z-20">
+  <!-- Top Bar: Layout Switcher, Audio Controls & Subtitle Calibration Tool -->
+  <div class="flex flex-wrap items-center justify-center gap-2 mb-2 z-20">
+    <!-- Layout Switcher -->
     <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
       <button
         type="button"
@@ -153,7 +257,7 @@
           : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
       >
         <Smartphone class="w-3.5 h-3.5" />
-        <span>📱 Crop 9:16 Vertikal (TikTok/Reels)</span>
+        <span>📱 Crop 9:16 Vertikal</span>
       </button>
 
       <button
@@ -168,23 +272,75 @@
       </button>
     </div>
 
-    <!-- Tombol Suara (Mute / Unmute) -->
-    <button
-      type="button"
-      onclick={toggleMute}
-      class="h-7 px-3 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer {isMuted
-        ? 'bg-[#20242A] border-[#292E34] text-[#F59E0B] hover:border-[#F59E0B]/50'
-        : 'bg-[#B6F36B]/15 border-[#B6F36B]/40 text-[#B6F36B]'}"
-      title={isMuted ? 'Suara sedang dibisukan (Klik untuk nyalakan)' : 'Suara aktif (Klik untuk bisukan)'}
-    >
-      {#if isMuted}
-        <VolumeX class="w-3.5 h-3.5" />
-        <span>🔇 Bisu (Klik Suara)</span>
-      {:else}
-        <Volume2 class="w-3.5 h-3.5" />
-        <span>🔊 Suara Aktif</span>
+    <!-- Kalibrasi Sinkronisasi Subtitle Manual -->
+    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#191C20] border border-[#292E34] text-xs">
+      <span class="text-[#9299A3] flex items-center gap-1 font-medium">
+        <Sparkles class="w-3.5 h-3.5 text-[#B6F36B]" />
+        <span>Sinkronisasi:</span>
+      </span>
+      <button
+        type="button"
+        onclick={() => (subtitleOffset = Math.round((subtitleOffset - 0.5) * 10) / 10)}
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] cursor-pointer"
+        title="Teks muncul 0.5 detik lebih cepat"
+      >
+        -0.5s
+      </button>
+      <span class="font-mono text-[#B6F36B] font-bold min-w-[32px] text-center">
+        {subtitleOffset > 0 ? `+${subtitleOffset.toFixed(1)}` : subtitleOffset.toFixed(1)}s
+      </span>
+      <button
+        type="button"
+        onclick={() => (subtitleOffset = Math.round((subtitleOffset + 0.5) * 10) / 10)}
+        class="px-1.5 py-0.5 rounded bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-mono text-[11px] cursor-pointer"
+        title="Teks muncul 0.5 detik lebih lambat"
+      >
+        +0.5s
+      </button>
+      {#if subtitleOffset !== 0}
+        <button
+          type="button"
+          onclick={() => (subtitleOffset = 0)}
+          class="text-[10px] text-[#9299A3] hover:text-[#E7E9EC] underline ml-1 cursor-pointer"
+        >
+          Reset
+        </button>
       {/if}
-    </button>
+    </div>
+
+    <!-- Kontrol Suara & Volume Slider -->
+    <div class="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#191C20] border border-[#292E34]">
+      <button
+        type="button"
+        onclick={toggleMute}
+        class="text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer {isMuted
+          ? 'text-[#F59E0B] hover:text-[#FBBF24]'
+          : 'text-[#B6F36B]'}"
+        title={isMuted ? 'Suara mati. Klik untuk menyalakan audio' : 'Suara aktif. Klik untuk mematikan audio'}
+      >
+        {#if isMuted}
+          <VolumeX class="w-4 h-4" />
+          <span>Bisu</span>
+        {:else}
+          <Volume2 class="w-4 h-4" />
+          <span>Suara ({volume}%)</span>
+        {/if}
+      </button>
+
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="5"
+        value={isMuted ? 0 : volume}
+        oninput={(e) => {
+          const val = parseInt((e.target as HTMLInputElement).value);
+          setVolumeLevel(val);
+        }}
+        class="w-14 sm:w-16 accent-[#B6F36B] bg-[#292E34] h-1.5 rounded-lg cursor-pointer"
+        title="Atur Volume Suara"
+      />
+    </div>
   </div>
 
   <!-- Stage Canvas Wrapper -->
@@ -198,15 +354,28 @@
           : clip.aspectRatio === '1:1'
             ? 'h-[420px] w-[420px]'
             : 'h-[320px] w-[568px]'
-        : 'h-[340px] w-[604px]'}"
+        : 'h-[350px] w-[622px]'}"
     >
+      <!-- BANNER BANTUAN AKTIFKAN SUARA JIKA BROWSER MEMBLOKIR AUTOPLAY AUDIO -->
+      {#if isMuted}
+        <button
+          type="button"
+          onclick={enableSound}
+          class="absolute top-14 inset-x-4 z-40 py-2.5 px-3 rounded-xl bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] font-black text-xs flex items-center justify-center gap-2 shadow-2xl transition-all cursor-pointer ring-4 ring-[#B6F36B]/30 animate-pulse"
+        >
+          <Volume2 class="w-4 h-4 stroke-[2.5]" />
+          <span>🔊 KLIK DI SINI UNTUK NYALAKAN SUARA</span>
+        </button>
+      {/if}
+
       <!-- LAYER 1: VIDEO YOUTUBE BERGERAK ASLI DI DALAM CROP CONTAINER -->
       <div class="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
         <iframe
           bind:this={iframeRef}
           src={embedUrl}
+          onload={handleIframeLoad}
           title="Video Klip: {clip.title}"
-          class="absolute pointer-events-none transition-transform duration-100"
+          class="absolute {viewLayout === 'landscape' ? 'pointer-events-auto' : 'pointer-events-none'} transition-transform duration-100"
           style="
             height: 100%;
             width: {viewLayout === 'vertical' && clip.aspectRatio === '9:16' ? '325%' : viewLayout === 'vertical' && clip.aspectRatio === '1:1' ? '180%' : '100%'};
@@ -268,7 +437,6 @@
             Batas Atas Aman (Reels / TikTok / Shorts)
           </div>
 
-          <!-- Tombol Interaksi Simulasi TikTok di sebelah kanan -->
           <div class="absolute right-2.5 bottom-16 flex flex-col gap-2.5 items-center opacity-40">
             <div class="w-6 h-6 rounded-full bg-white/20 border border-white/30"></div>
             <div class="w-6 h-6 rounded-full bg-white/20 border border-white/30"></div>
@@ -289,7 +457,7 @@
           <div class="inline-block px-3 py-1.5 font-black tracking-tight text-xs sm:text-sm uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] max-w-full break-words leading-tight">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="color: {isActive ? highlightColor : '#FFFFFF'}; -webkit-text-stroke: {isActive ? '1px black' : '0.5px rgba(0,0,0,0.8)'};"
                   class="mr-1 inline-block transition-transform duration-75 {isActive ? 'scale-120 font-black' : 'text-white font-extrabold'}"
@@ -307,7 +475,7 @@
           <div class="inline-flex flex-wrap items-center justify-center gap-1 px-3 py-1.5 font-black italic uppercase text-xs sm:text-sm tracking-wide drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] max-w-full">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 {#if isActive}
                   <span
                     style="background-color: {highlightColor};"
@@ -332,7 +500,7 @@
             <div class="text-xs sm:text-[13px] font-semibold text-white/95 tracking-normal leading-relaxed">
               {#if currentSegment?.words}
                 {#each currentSegment.words as w, idx (idx)}
-                  {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                  {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span
                     style="color: {isActive ? highlightColor : 'rgba(255,255,255,0.85)'};"
                     class="mr-1 transition-colors {isActive ? 'font-bold underline underline-offset-4 decoration-2' : ''}"
@@ -351,8 +519,8 @@
           <div class="inline-block px-3 py-1 text-xs sm:text-sm font-bold tracking-wide max-w-full break-words drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)]">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isPast = currentTime >= w.end}
-                {@const isCurrent = currentTime >= w.start && currentTime <= w.end}
+                {@const isPast = effectiveTime >= w.end}
+                {@const isCurrent = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="color: {isCurrent ? highlightColor : isPast ? '#FFFFFF' : 'rgba(255,255,255,0.4)'}; text-shadow: {isCurrent ? `0 0 12px ${highlightColor}` : 'none'};"
                   class="mr-1 inline-block transition-all {isCurrent ? 'scale-115 underline font-black' : ''}"
@@ -370,7 +538,7 @@
           <div class="inline-block px-3 py-1 font-extrabold uppercase tracking-wider text-xs sm:text-sm max-w-full">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="
                     color: {isActive ? '#FFFFFF' : 'rgba(255,255,255,0.6)'};
@@ -391,7 +559,7 @@
           <div class="inline-flex flex-wrap items-center justify-center gap-1 max-w-full">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 <span
                   style="
                     background-color: {isActive ? highlightColor : '#000000'};
@@ -413,7 +581,7 @@
             <div class="text-[11px] sm:text-xs font-medium tracking-widest uppercase text-white/95 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-relaxed">
               {#if currentSegment?.words}
                 {#each currentSegment.words as w, idx (idx)}
-                  {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                  {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span
                     style="color: {isActive ? highlightColor : '#FFFFFF'};"
                     class="mr-1 transition-all {isActive ? 'font-bold' : ''}"
@@ -434,7 +602,7 @@
             <span class="text-white font-semibold">
               {#if currentSegment?.words}
                 {#each currentSegment.words as w, idx (idx)}
-                  {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                  {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                   <span style="color: {isActive ? highlightColor : '#E7E9EC'};" class="mr-1 {isActive ? 'font-bold underline' : ''}">
                     {w.word}
                   </span>
@@ -451,7 +619,7 @@
           <div class="inline-block px-3 py-1.5 font-black uppercase text-xs sm:text-sm drop-shadow-[0_3px_6px_rgba(0,0,0,0.95)] max-w-full">
             {#if currentSegment?.words}
               {#each currentSegment.words as w, idx (idx)}
-                {@const isActive = currentTime >= w.start && currentTime <= w.end}
+                {@const isActive = effectiveTime >= w.start && effectiveTime <= w.end}
                 {#if isActive}
                   <span class="mr-1 inline-block bg-gradient-to-r from-yellow-300 via-amber-400 to-red-500 bg-clip-text text-transparent font-black scale-120 drop-shadow-md">
                     🔥 {w.word}
@@ -476,18 +644,26 @@
       </div>
 
       <!-- LAYER 6: INTERAKSI KLIK PLAY / PAUSE PADA LAYAR -->
-      <button
-        type="button"
-        onclick={togglePlay}
-        class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/15 hover:bg-black/25 transition-colors z-30 cursor-pointer group"
-        aria-label={isPlaying ? 'Jeda Video' : 'Putar Video'}
-      >
-        {#if !isPlaying}
-          <div class="w-14 h-14 rounded-full bg-[#B6F36B] text-[#111315] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
-            <Play class="w-7 h-7 fill-current ml-0.5" />
-          </div>
-        {/if}
-      </button>
+      {#if viewLayout === 'vertical'}
+        <button
+          type="button"
+          onclick={() => {
+            if (isMuted) {
+              enableSound();
+            } else {
+              togglePlay();
+            }
+          }}
+          class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors z-30 cursor-pointer group"
+          aria-label={isPlaying ? 'Jeda Video' : 'Putar Video'}
+        >
+          {#if !isPlaying}
+            <div class="w-14 h-14 rounded-full bg-[#B6F36B] text-[#111315] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
+              <Play class="w-7 h-7 fill-current ml-0.5" />
+            </div>
+          {/if}
+        </button>
+      {/if}
     </div>
   </div>
 
