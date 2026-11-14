@@ -32,3 +32,4 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ success: false, error: err.message || 'Gagal mengunggah watermark' }, { status: 500 });
   }
 };
+
