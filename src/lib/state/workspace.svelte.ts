@@ -158,8 +158,8 @@ export class WorkspaceStore {
     );
   }
 
-  startRender(config: Partial<RenderTask>) {
-    const clip = this.activeClip;
+  async startRender(config: Partial<RenderTask>, targetClip?: ClipCandidate): Promise<string> {
+    const clip = targetClip || this.activeClip;
     const taskId = `render-${Date.now()}`;
     const newTask: RenderTask = {
       id: taskId,
@@ -171,67 +171,112 @@ export class WorkspaceStore {
       bitrateMbps: config.bitrateMbps || 18,
       format: config.format || 'mp4',
       includeSubtitles: config.includeSubtitles || 'burned',
-      progress: 0,
+      progress: 10,
       status: 'rendering',
-      fileSizeBytes: config.fileSizeBytes || 85000000,
+      fileSizeBytes: config.fileSizeBytes || 3500000,
       createdAt: new Date().toISOString(),
     };
 
     this.renderTasks = [newTask, ...this.renderTasks];
 
-    // Simulate encoding progress with tracked cleanup
-    let renderPct = 0;
-    const timer = setInterval(() => {
-      renderPct += 25;
-      if (renderPct >= 100) {
-        clearInterval(timer);
-        this.renderTimers.delete(taskId);
+    // Animasi progress awal sambil menunggu backend merender video riil
+    let progress = 15;
+    const progressInterval = setInterval(() => {
+      if (progress < 85) {
+        progress += Math.floor(Math.random() * 8) + 5;
         this.renderTasks = this.renderTasks.map((t) =>
-          t.id === taskId
-            ? { ...t, progress: 100, status: 'completed', completedAt: new Date().toISOString() }
-            : t
-        );
-      } else {
-        this.renderTasks = this.renderTasks.map((t) =>
-          t.id === taskId ? { ...t, progress: renderPct } : t
+          t.id === taskId ? { ...t, progress: Math.min(85, progress) } : t
         );
       }
-    }, 350);
+    }, 450);
 
-    this.renderTimers.set(taskId, timer);
-    return taskId;
+    // Kirim request ke backend SvelteKit /api/render untuk pemotongan YouTube riil & burning subtitle
+    const video = this.activeVideo;
+    const rawVideoId =
+      video?.id?.replace(/^yt-/, '') ||
+      clip?.sourceVideoId?.replace(/^yt-/, '') ||
+      'wsCBMCa_DBA';
+    const youtubeUrl = `https://www.youtube.com/watch?v=${rawVideoId}`;
+
+    try {
+      const res = await fetch('/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          youtubeUrl,
+          videoId: rawVideoId,
+          startTime: clip?.startTime || 0,
+          endTime: clip?.endTime || 30,
+          clipTitle: clip?.title || newTask.clipTitle,
+          aspectRatio: newTask.aspectRatio,
+          captionPreset: clip?.captionPreset || this.rules.captionPreset,
+          captionPosition: clip?.captionPosition || this.rules.captionPosition || 'bottom',
+          captionMaxLines: clip?.captionMaxLines || this.rules.captionMaxLines || 2,
+          captionHighlightColor: this.rules.captionHighlightColor || '#B6F36B',
+          captions: clip?.captions || [],
+        }),
+      });
+
+      clearInterval(progressInterval);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Gagal memproses render video');
+      }
+
+      this.renderTasks = this.renderTasks.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              progress: 100,
+              status: 'completed',
+              downloadUrl: data.downloadUrl,
+              fileSizeBytes: data.fileSizeBytes || t.fileSizeBytes,
+              completedAt: new Date().toISOString(),
+            }
+          : t
+      );
+
+      const finishedTask = this.renderTasks.find((t) => t.id === taskId);
+      if (finishedTask) {
+        this.downloadRenderTask(finishedTask);
+      }
+      return taskId;
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      console.error('Render failure:', err);
+      this.renderTasks = this.renderTasks.map((t) =>
+        t.id === taskId ? { ...t, progress: 100, status: 'failed' } : t
+      );
+      throw err;
+    }
   }
 
   downloadRenderTask(task: RenderTask) {
-    // Generate a downloadable media file matching format
-    const content = `Kroma Clip Render Export\nJudul Klip: ${task.clipTitle}\nFormat: ${task.format}\nResolusi: ${task.resolution}\nFPS: ${task.framerate}\nSubtitle: ${task.includeSubtitles}\nTimestamp: ${new Date().toISOString()}`;
-    const blob = new Blob([content], { type: task.format === 'mp4' ? 'video/mp4' : 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${task.clipTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${task.aspectRatio.replace(':', 'x')}.${task.format}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (typeof window === 'undefined') return;
+
+    if (task.downloadUrl) {
+      // Download file video MP4 riil yang telah selesai dirender
+      const a = document.createElement('a');
+      a.href = task.downloadUrl;
+      a.download = `${task.clipTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${task.aspectRatio.replace(':', 'x')}.${task.format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      console.warn('File video belum siap diunduh.');
+    }
   }
 
-  quickDownloadClip(clip: ClipCandidate) {
+  async quickDownloadClip(clip: ClipCandidate) {
     this.selectClip(clip);
-    const taskId = this.startRender({
-      clipId: clip.id,
-      clipTitle: clip.title,
-      aspectRatio: clip.aspectRatio,
-    });
-
-    // Otomatis download file setelah proses render selesai
-    setTimeout(() => {
-      const task = this.renderTasks.find((t) => t.id === taskId);
-      if (task) {
-        this.downloadRenderTask(task);
-      }
-    }, 1500);
-    return taskId;
+    return await this.startRender(
+      {
+        clipId: clip.id,
+        clipTitle: clip.title,
+        aspectRatio: clip.aspectRatio,
+      },
+      clip
+    );
   }
 
   addScheduledPost(post: ScheduledPost) {

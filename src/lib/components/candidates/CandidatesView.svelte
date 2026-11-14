@@ -70,36 +70,38 @@
     modalIsPlaying = false;
   }
 
-  function handleDirectDownload(clip: ClipCandidate) {
+  async function handleDirectDownload(clip: ClipCandidate) {
     if (downloadingClipId === clip.id) return;
     downloadingClipId = clip.id;
 
-    workspace.quickDownloadClip(clip);
-
-    setTimeout(() => {
-      downloadingClipId = null;
+    try {
+      await workspace.quickDownloadClip(clip);
       downloadedClipIds = { ...downloadedClipIds, [clip.id]: true };
       setTimeout(() => {
         downloadedClipIds = { ...downloadedClipIds, [clip.id]: false };
-      }, 4000);
-    }, 1800);
+      }, 5000);
+    } catch (e) {
+      console.error('Download error:', e);
+    } finally {
+      downloadingClipId = null;
+    }
   }
 
-  function handleDownloadAllClips() {
+  async function handleDownloadAllClips() {
     if (isDownloadingAll) return;
     isDownloadingAll = true;
     const targetClips = filteredCandidates.length > 0 ? filteredCandidates : workspace.candidates;
 
-    targetClips.forEach((clip, idx) => {
-      setTimeout(() => {
-        workspace.quickDownloadClip(clip);
+    for (const clip of targetClips) {
+      try {
+        await workspace.quickDownloadClip(clip);
         downloadedClipIds = { ...downloadedClipIds, [clip.id]: true };
-      }, idx * 700);
-    });
+      } catch (e) {
+        console.error('Batch download clip error:', e);
+      }
+    }
 
-    setTimeout(() => {
-      isDownloadingAll = false;
-    }, targetClips.length * 700 + 1000);
+    isDownloadingAll = false;
   }
 </script>
 

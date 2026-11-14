@@ -1,153 +1,304 @@
 #!/usr/bin/env python3
 """
 Kroma Clip - Production FFmpeg & Python Video Rendering Engine
-Handles:
-1. YouTube video slice downloading via yt-dlp
-2. Dynamic 9:16 vertical smart-cropping
-3. Kinetic typography subtitle burning (Hormozi / Karaoke style via ASS subtitles)
-4. Automatic watermark overlay positioning
-5. High-speed H.264/AAC MP4 encoding
+Directly slices YouTube stream, crops to 9:16 vertical, generates styled subtitle cards with Pillow,
+and burns them seamlessly with FFmpeg.
 """
 
 import os
 import sys
 import json
+import argparse
+import tempfile
 import subprocess
 from typing import List, Dict, Optional
+from PIL import Image, ImageDraw, ImageFont
 
-class VideoClipRenderer:
-    def __init__(self, output_dir: str = "output_clips"):
-        self.output_dir = output_dir
-        os.makedirs(self.output_dir, exist_ok=True)
+def get_best_font(size: int = 46):
+    font_candidates = [
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/SFNS.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]
+    for p in font_candidates:
+        if os.path.exists(p):
+            try:
+                return ImageFont.truetype(p, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
 
-    def download_youtube_segment(self, youtube_url: str, start_sec: float, duration_sec: float, output_path: str) -> bool:
-        """
-        Uses yt-dlp with ffmpeg stream-slicing to download ONLY the needed segment
-        without downloading the full multi-gigabyte video.
-        """
-        print(f"[1/4] Downloading YouTube segment: {start_sec}s - {start_sec + duration_sec}s...")
-        
-        # yt-dlp download-sections command
-        cmd = [
-            "yt-dlp",
-            "--download-sections", f"*{start_sec}-{start_sec + duration_sec}",
-            "--force-keyframes-at-cuts",
-            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "-o", output_path,
-            youtube_url
-        ]
-
-        try:
-            subprocess.run(cmd, check=True)
-            return os.path.exists(output_path)
-        except Exception as e:
-            print(f"Error downloading YouTube segment: {e}", file=sys.stderr)
-            return False
-
-    def generate_ass_subtitles(self, captions: List[Dict], style_preset: str = "hormozi", highlight_color: str = "&H6BF3B6&") -> str:
-        """
-        Generates Advanced SubStation Alpha (.ass) file with Hormozi-style pop & karaoke colors.
-        """
-        ass_path = os.path.join(self.output_dir, "temp_subtitles.ass")
-        
-        # ASS Header with 1080x1920 canvas
-        header = f"""[Script Info]
-Title: Kroma Clip Kinetic Subtitles
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Hormozi,Arial Black,76,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,2,0,1,6,3,2,60,60,380,1
-Style: Minimal,Helvetica,52,&H00E7E9EC,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,60,60,320,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-        with open(ass_path, "w", encoding="utf-8") as f:
-            f.write(header)
-            for seg in captions:
-                start_fmt = self._sec_to_ass_time(seg.get("start", 0))
-                end_fmt = self._sec_to_ass_time(seg.get("end", 0))
-                text = seg.get("text", "").upper() if style_preset == "hormozi" else seg.get("text", "")
-                
-                # Highlight keyword in color
-                styled_text = f"{{\\c{highlight_color}\\b1}}{text}{{\\r}}" if style_preset == "hormozi" else text
-                f.write(f"Dialogue: 0,{start_fmt},{end_fmt},Hormozi,,0,0,0,,{styled_text}\n")
-                
-        return ass_path
-
-    def _sec_to_ass_time(self, seconds: float) -> str:
-        h = int(seconds // 3600)
-        m = int((seconds % 3600) // 60)
-        s = int(seconds % 60)
-        cs = int((seconds - int(seconds)) * 100)
-        return f"{h:01d}:{m:02d}:{s:02d}.{cs:02d}"
-
-    def render_clip(
-        self,
-        input_video_path: str,
-        output_clip_path: str,
-        aspect_ratio: str = "9:16",
-        ass_subtitles_path: Optional[str] = None,
-        watermark_path: Optional[str] = None,
-    ) -> bool:
-        """
-        Executes FFmpeg with complex filtergraph:
-        - 9:16 vertical center crop
-        - Subtitle burning (via libass)
-        - Watermark logo overlay (top-right safe margin)
-        - Hardware/CPU fast encoding
-        """
-        print(f"[2/4] Rendering clip to {aspect_ratio} format with FFmpeg...")
-
-        # Build FFmpeg filtergraph
-        # Center-crop formula to 9:16:
-        # crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920
-        filters = []
-        if aspect_ratio == "9:16":
-            filters.append("crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920")
-        elif aspect_ratio == "1:1":
-            filters.append("crop=min(iw\\,ih):min(iw\\,ih),scale=1080:1080")
-
-        # Burn ASS Subtitles
-        if ass_subtitles_path and os.path.exists(ass_subtitles_path):
-            escaped_path = ass_subtitles_path.replace(":", "\\:").replace("\\", "/")
-            filters.append(f"ass={escaped_path}")
-
-        filter_complex = ",".join(filters)
-
-        cmd = ["ffmpeg", "-y", "-i", input_video_path]
-
-        # Add watermark input if provided
-        if watermark_path and os.path.exists(watermark_path):
-            cmd.extend(["-i", watermark_path])
-            filter_complex += ";[0:v][1:v]overlay=W-w-40:80[outv]"
-            cmd.extend(["-filter_complex", filter_complex, "-map", "[outv]", "-map", "0:a"])
+def wrap_text_to_lines(text: str, max_lines: int, font, max_width: int) -> List[str]:
+    words = text.split()
+    if not words:
+        return []
+    if max_lines <= 1:
+        return [" ".join(words)]
+    
+    # Simple greedy line wrapping
+    lines = []
+    current_line = []
+    for w in words:
+        test_line = " ".join(current_line + [w])
+        bbox = font.getbbox(test_line)
+        w_px = bbox[2] - bbox[0]
+        if w_px <= max_width or not current_line:
+            current_line.append(w)
         else:
-            cmd.extend(["-vf", filter_complex])
+            lines.append(" ".join(current_line))
+            current_line = [w]
+            if len(lines) >= max_lines - 1:
+                break
+    if current_line:
+        lines.append(" ".join(current_line))
+        
+    return lines[:max_lines]
 
-        # Encoding settings
-        cmd.extend([
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "19",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            output_clip_path
-        ])
-
-        print(f"Executing: {' '.join(cmd)}")
+def generate_card_image(
+    text: str,
+    preset: str,
+    highlight_color_hex: str,
+    max_lines: int,
+    out_path: str
+) -> int:
+    """
+    Renders styled subtitle PNG card using PIL and returns the height of the card in px.
+    """
+    font_size = 46 if max_lines <= 2 else 38
+    font = get_best_font(font_size)
+    
+    # Format text: uppercase for impact styles
+    display_text = text.upper() if preset in ["hormozi", "mrbeast", "vox_box", "fire_gradient"] else text
+    lines = wrap_text_to_lines(display_text, max_lines, font, max_width=900)
+    
+    line_height = font_size + 16
+    content_h = len(lines) * line_height
+    card_h = content_h + 50
+    card_w = 980
+    
+    img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    
+    # Styling presets
+    # Hex to RGB
+    def parse_hex(h: str, default=(182, 243, 107)):
+        h = h.lstrip("#")
         try:
-            subprocess.run(cmd, check=True)
-            print(f"[SUCCESS] Rendered clip: {output_clip_path}")
-            return True
-        except Exception as e:
-            print(f"FFmpeg error: {e}", file=sys.stderr)
-            return False
+            return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+        except Exception:
+            return default
+            
+    hl_rgb = parse_hex(highlight_color_hex, (182, 243, 107))
+    
+    if preset == "hormozi":
+        # Dark pill with lime border & text
+        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=24, fill=(15, 18, 22, 235), outline=(*hl_rgb, 255), width=4)
+        text_color = (*hl_rgb, 255)
+    elif preset == "mrbeast":
+        # Yellow bold with thick dark pill
+        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=28, fill=(0, 0, 0, 245), outline=(250, 204, 21, 255), width=5)
+        text_color = (250, 204, 21, 255)
+    elif preset == "vox_box":
+        # Solid dark box
+        draw.rectangle([10, 10, card_w - 10, card_h - 10], fill=(10, 10, 10, 245), outline=(255, 255, 255, 255), width=3)
+        text_color = (255, 255, 255, 255)
+    elif preset == "neon_glow":
+        # Neon cyan/green border
+        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=20, fill=(10, 15, 24, 225), outline=(6, 182, 212, 255), width=4)
+        text_color = (255, 255, 255, 255)
+    elif preset == "fire_gradient":
+        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=24, fill=(24, 12, 10, 235), outline=(249, 115, 22, 255), width=4)
+        text_color = (254, 215, 170, 255)
+    else:
+        # Minimal / default
+        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=20, fill=(20, 23, 26, 210), outline=(50, 56, 64, 200), width=2)
+        text_color = (240, 243, 246, 255)
+        
+    start_y = (card_h - content_h) // 2 + (font_size // 2)
+    for idx, line in enumerate(lines):
+        y = start_y + idx * line_height
+        draw.text((card_w // 2, y), line, font=font, fill=text_color, anchor="mm")
+        
+    img.save(out_path)
+    return card_h
+
+def render_clip(
+    youtube_url: str,
+    start_time: float,
+    end_time: float,
+    output_path: str,
+    aspect_ratio: str = "9:16",
+    caption_preset: str = "hormozi",
+    caption_position: str = "bottom",
+    caption_max_lines: int = 2,
+    caption_highlight_color: str = "#B6F36B",
+    captions: Optional[List[Dict]] = None
+) -> Dict:
+    duration = end_time - start_time
+    if duration <= 0:
+        duration = 15.0
+        end_time = start_time + duration
+        
+    temp_dir = tempfile.mkdtemp(prefix="kroma_render_")
+    raw_video = os.path.join(temp_dir, "segment_raw.mp4")
+    
+    # 1. Download YouTube slice via yt-dlp
+    print(f"[1/3] Downloading YouTube segment: {start_time}s - {end_time}s...", flush=True)
+    cmd_dl = [
+        "yt-dlp",
+        "--download-sections", f"*{start_time}-{end_time}",
+        "--force-keyframes-at-cuts",
+        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "-o", raw_video,
+        youtube_url
+    ]
+    
+    subprocess.run(cmd_dl, check=True)
+    if not os.path.exists(raw_video):
+        raise RuntimeError("Gagal mengunduh segmen video dari YouTube")
+
+    # 2. Generate subtitle card PNGs
+    print(f"[2/3] Generating kinetic subtitle cards...", flush=True)
+    overlay_cards = []
+    
+    if captions:
+        for idx, seg in enumerate(captions):
+            seg_start = seg.get("start", 0)
+            seg_end = seg.get("end", 0)
+            text = seg.get("text", "").strip()
+            if not text:
+                continue
+                
+            # Check overlap with clip range
+            if seg_end <= start_time or seg_start >= end_time:
+                continue
+                
+            rel_start = max(0.0, round(seg_start - start_time, 2))
+            rel_end = min(round(duration, 2), round(seg_end - start_time, 2))
+            if rel_end <= rel_start:
+                rel_end = rel_start + 1.2
+                
+            card_path = os.path.join(temp_dir, f"sub_{idx}.png")
+            card_h = generate_card_image(
+                text=text,
+                preset=caption_preset,
+                highlight_color_hex=caption_highlight_color,
+                max_lines=caption_max_lines,
+                out_path=card_path
+            )
+            
+            overlay_cards.append({
+                "path": card_path,
+                "start": rel_start,
+                "end": rel_end,
+                "height": card_h
+            })
+
+    # 3. Build FFmpeg command
+    print(f"[3/3] Encoding {aspect_ratio} vertical video with burned captions...", flush=True)
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    
+    ffmpeg_cmd = ["ffmpeg", "-y", "-i", raw_video]
+    for c in overlay_cards:
+        ffmpeg_cmd.extend(["-i", c["path"]])
+        
+    filter_chains = []
+    # Video crop & scale to 9:16 vertical (1080x1920) or 1:1
+    if aspect_ratio == "1:1":
+        target_w, target_h = 1080, 1080
+        filter_chains.append("[0:v]crop=min(iw\\,ih):min(iw\\,ih),scale=1080:1080[v0]")
+    else: # 9:16 vertical default
+        target_w, target_h = 1080, 1920
+        filter_chains.append("[0:v]crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920[v0]")
+        
+    last_v = "v0"
+    for i, c in enumerate(overlay_cards):
+        next_v = f"v{i+1}"
+        input_idx = i + 1
+        card_h = c["height"]
+        
+        # Position calculation
+        if caption_position == "top":
+            y_pos = 180
+        elif caption_position == "middle":
+            y_pos = (target_h - card_h) // 2
+        else: # bottom default
+            y_pos = target_h - card_h - 180
+            
+        filter_chains.append(
+            f"[{last_v}][{input_idx}:v]overlay=(W-w)/2:{y_pos}:enable='between(t,{c['start']},{c['end']})'[{next_v}]"
+        )
+        last_v = next_v
+        
+    filter_complex = ";".join(filter_chains)
+    ffmpeg_cmd.extend([
+        "-filter_complex", filter_complex,
+        "-map", f"[{last_v}]",
+        "-map", "0:a",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "20",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-movflags", "+faststart",
+        output_path
+    ])
+    
+    subprocess.run(ffmpeg_cmd, check=True)
+    
+    # Cleanup temp cards
+    try:
+        for f in os.listdir(temp_dir):
+            os.remove(os.path.join(temp_dir, f))
+        os.rmdir(temp_dir)
+    except Exception:
+        pass
+        
+    file_size = os.path.getsize(output_path)
+    return {
+        "status": "success",
+        "output_path": output_path,
+        "file_size": file_size,
+        "duration": duration
+    }
+
+def main():
+    parser = argparse.ArgumentParser(description="Kroma Clip Video Renderer")
+    parser.add_argument("--url", required=True, help="YouTube Video URL")
+    parser.add_argument("--start", type=float, required=True, help="Start time in seconds")
+    parser.add_argument("--end", type=float, required=True, help="End time in seconds")
+    parser.add_argument("--output", required=True, help="Output MP4 file path")
+    parser.add_argument("--aspect", default="9:16", help="Target aspect ratio")
+    parser.add_argument("--preset", default="hormozi", help="Caption preset")
+    parser.add_argument("--position", default="bottom", help="Caption position: top, middle, bottom")
+    parser.add_argument("--max-lines", type=int, default=2, help="Max caption lines: 1, 2, 3")
+    parser.add_argument("--highlight-color", default="#B6F36B", help="Highlight color hex")
+    parser.add_argument("--captions-json", default="[]", help="JSON string of caption segments")
+    
+    args = parser.parse_args()
+    
+    try:
+        captions = json.loads(args.captions_json)
+    except Exception:
+        captions = []
+        
+    result = render_clip(
+        youtube_url=args.url,
+        start_time=args.start,
+        end_time=args.end,
+        output_path=args.output,
+        aspect_ratio=args.aspect,
+        caption_preset=args.preset,
+        caption_position=args.position,
+        caption_max_lines=args.max_lines,
+        caption_highlight_color=args.highlight_color,
+        captions=captions
+    )
+    
+    print(json.dumps(result))
 
 if __name__ == "__main__":
-    print("Kroma Clip - Python Render Engine loaded successfully.")
-
+    main()

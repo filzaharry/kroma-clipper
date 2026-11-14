@@ -102,6 +102,7 @@ export interface RenderTask {
   includeSubtitles: 'burned' | 'separate_srt' | 'none';
   progress: number; // 0 to 100
   status: 'queued' | 'rendering' | 'completed' | 'failed';
+  downloadUrl?: string;
   fileSizeBytes: number;
   createdAt: string;
   completedAt?: string;

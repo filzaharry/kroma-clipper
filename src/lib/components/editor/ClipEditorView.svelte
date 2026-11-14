@@ -109,20 +109,22 @@
     goto('/export');
   }
 
-  function handleQuickDownload() {
+  async function handleQuickDownload() {
     if (isDownloading) return;
     isDownloading = true;
     downloadSuccess = false;
 
-    workspace.quickDownloadClip(clip);
-
-    setTimeout(() => {
-      isDownloading = false;
+    try {
+      await workspace.quickDownloadClip(clip);
       downloadSuccess = true;
       setTimeout(() => {
         downloadSuccess = false;
-      }, 3000);
-    }, 1800);
+      }, 5000);
+    } catch (e) {
+      console.error('Editor quick download error:', e);
+    } finally {
+      isDownloading = false;
+    }
   }
 </script>
 

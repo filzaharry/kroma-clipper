@@ -120,6 +120,7 @@ test('evaluateHighlightCandidates fallback guarantees candidates even with stric
     speechPacingPenalty: true,
     detectSpeakerSwitches: true,
     captionPreset: 'hormozi',
+    captionHighlightColor: '#B6F36B',
     maxCandidates: 4,
   };
 
