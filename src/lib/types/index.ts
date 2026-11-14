@@ -18,6 +18,24 @@ export type CaptionMaxLines = 1 | 2 | 3;
 export type FramingLayout = 'crop' | 'fit_blur';
 export type BackgroundStyle = 'dark_blur' | 'extra_dark_blur' | 'pure_black' | 'dark_gradient';
 
+export type WatermarkPosition = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'center';
+
+export interface WatermarkConfig {
+  enabled: boolean;
+  imageUrl?: string;
+  position: WatermarkPosition;
+  sizePercent: number; // 8% to 40%
+  opacity: number; // 0.1 to 1.0
+}
+
+export interface BgmConfig {
+  enabled: boolean;
+  youtubeUrl?: string;
+  title?: string;
+  audioUrl?: string;
+  volume: number; // 0 to 100 (default 15)
+}
+
 export interface CaptionWord {
   word: string;
   start: number; // in seconds
@@ -93,6 +111,8 @@ export interface ClipCandidate {
   captionMaxLines?: CaptionMaxLines;
   framingLayout?: FramingLayout;
   backgroundStyle?: BackgroundStyle;
+  watermark?: WatermarkConfig;
+  bgm?: BgmConfig;
   captions: CaptionSegment[];
   bRollCuts?: Array<{ timestamp: number; type: 'zoom_in' | 'speaker_switch' | 'graphic' }>;
 }

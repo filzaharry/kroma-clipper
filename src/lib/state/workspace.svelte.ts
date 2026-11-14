@@ -217,6 +217,8 @@ export class WorkspaceStore {
           captionHighlightColor: clip?.captionHighlightColor || this.rules.captionHighlightColor || '#B6F36B',
           panOffset: clip?.panOffset || 0,
           zoomLevel: clip?.zoomLevel || 1.0,
+          watermark: clip?.watermark,
+          bgm: clip?.bgm,
           captions: clip?.captions || [],
         }),
       });

@@ -10,6 +10,7 @@
     FramingMode,
     FramingLayout,
     BackgroundStyle,
+    WatermarkPosition,
   } from '#lib/types';
   import EditorPlayer from './EditorPlayer.svelte';
   import EditorTimeline from './EditorTimeline.svelte';
@@ -27,13 +28,19 @@
     Check,
     Loader2,
     ShieldCheck,
+    Image as ImageIcon,
+    Music,
+    UploadCloud,
+    Trash2,
+    Volume2,
+    AlertCircle,
   } from 'lucide-svelte';
 
   let { clip }: { clip: ClipCandidate } = $props();
 
   let showSafeZones = $state(true);
   let showGrid = $state(false);
-  let activeTab = $state<'captions' | 'framing' | 'transcript'>('captions');
+  let activeTab = $state<'captions' | 'framing' | 'audio_brand' | 'transcript'>('captions');
   let highlightColor = $derived(
     clip.captionHighlightColor || workspace.rules.captionHighlightColor || '#B6F36B'
   );
@@ -41,6 +48,16 @@
   let isPlaying = $state(false);
   let isDownloading = $state(false);
   let downloadSuccess = $state(false);
+
+  // Watermark state
+  let isUploadingWatermark = $state(false);
+  let watermarkUploadError = $state<string | null>(null);
+
+  // BGM YouTube state
+  let bgmInputUrl = $state(clip.bgm?.youtubeUrl || '');
+  let isLoadingBgm = $state(false);
+  let bgmError = $state<string | null>(null);
+  let bgmSuccessMsg = $state<string | null>(null);
 
   $effect(() => {
     currentTime = clip.startTime;
@@ -130,6 +147,196 @@
     } finally {
       isDownloading = false;
     }
+  }
+
+  // --- Watermark Functions ---
+  async function handleWatermarkUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) return;
+    const file = input.files[0];
+
+    isUploadingWatermark = true;
+    watermarkUploadError = null;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/watermark', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gagal mengunggah logo watermark');
+      }
+
+      const currentWm = clip.watermark || {
+        position: 'top_right' as WatermarkPosition,
+        sizePercent: 16,
+        opacity: 0.85,
+      };
+
+      workspace.updateClip({
+        ...clip,
+        watermark: {
+          enabled: true,
+          imageUrl: data.url,
+          position: currentWm.position || 'top_right',
+          sizePercent: currentWm.sizePercent || 16,
+          opacity: currentWm.opacity || 0.85,
+        },
+      });
+    } catch (err: any) {
+      console.error('Watermark upload error:', err);
+      watermarkUploadError = err.message || 'Gagal mengunggah watermark';
+    } finally {
+      isUploadingWatermark = false;
+      input.value = '';
+    }
+  }
+
+  function removeWatermark() {
+    workspace.updateClip({
+      ...clip,
+      watermark: {
+        enabled: false,
+        imageUrl: '',
+        position: clip.watermark?.position || 'top_right',
+        sizePercent: clip.watermark?.sizePercent || 16,
+        opacity: clip.watermark?.opacity ?? 0.85,
+      },
+    });
+  }
+
+  function toggleWatermark(enabled: boolean) {
+    if (!clip.watermark?.imageUrl) return;
+    workspace.updateClip({
+      ...clip,
+      watermark: {
+        ...clip.watermark,
+        enabled,
+      },
+    });
+  }
+
+  function updateWatermarkPosition(position: WatermarkPosition) {
+    workspace.updateClip({
+      ...clip,
+      watermark: {
+        enabled: clip.watermark?.enabled ?? true,
+        imageUrl: clip.watermark?.imageUrl || '',
+        position,
+        sizePercent: clip.watermark?.sizePercent || 16,
+        opacity: clip.watermark?.opacity ?? 0.85,
+      },
+    });
+  }
+
+  function updateWatermarkSize(sizePercent: number) {
+    workspace.updateClip({
+      ...clip,
+      watermark: {
+        enabled: clip.watermark?.enabled ?? true,
+        imageUrl: clip.watermark?.imageUrl || '',
+        position: clip.watermark?.position || 'top_right',
+        sizePercent,
+        opacity: clip.watermark?.opacity ?? 0.85,
+      },
+    });
+  }
+
+  function updateWatermarkOpacity(opacity: number) {
+    workspace.updateClip({
+      ...clip,
+      watermark: {
+        enabled: clip.watermark?.enabled ?? true,
+        imageUrl: clip.watermark?.imageUrl || '',
+        position: clip.watermark?.position || 'top_right',
+        sizePercent: clip.watermark?.sizePercent || 16,
+        opacity,
+      },
+    });
+  }
+
+  // --- BGM YouTube Functions ---
+  async function handleLoadBgm() {
+    if (!bgmInputUrl || !bgmInputUrl.trim()) return;
+    isLoadingBgm = true;
+    bgmError = null;
+    bgmSuccessMsg = null;
+
+    try {
+      const res = await fetch('/api/bgm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ youtubeUrl: bgmInputUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Gagal memproses audio dari YouTube');
+      }
+
+      const currentBgm = clip.bgm || { volume: 15 };
+      workspace.updateClip({
+        ...clip,
+        bgm: {
+          enabled: true,
+          youtubeUrl: bgmInputUrl.trim(),
+          title: data.title || 'Musik YouTube',
+          audioUrl: data.audioUrl,
+          volume: currentBgm.volume || 15,
+        },
+      });
+      bgmSuccessMsg = `Audio "${data.title || 'Musik YouTube'}" siap diputar!`;
+      setTimeout(() => {
+        bgmSuccessMsg = null;
+      }, 4000);
+    } catch (err: any) {
+      console.error('BGM load error:', err);
+      bgmError = err.message || 'Gagal mengunduh musik dari link YouTube';
+    } finally {
+      isLoadingBgm = false;
+    }
+  }
+
+  function removeBgm() {
+    workspace.updateClip({
+      ...clip,
+      bgm: {
+        enabled: false,
+        youtubeUrl: '',
+        title: '',
+        audioUrl: '',
+        volume: clip.bgm?.volume || 15,
+      },
+    });
+    bgmInputUrl = '';
+  }
+
+  function toggleBgm(enabled: boolean) {
+    if (!clip.bgm?.audioUrl) return;
+    workspace.updateClip({
+      ...clip,
+      bgm: {
+        ...clip.bgm,
+        enabled,
+      },
+    });
+  }
+
+  function updateBgmVolume(volume: number) {
+    workspace.updateClip({
+      ...clip,
+      bgm: {
+        enabled: clip.bgm?.enabled ?? true,
+        youtubeUrl: clip.bgm?.youtubeUrl || '',
+        title: clip.bgm?.title || '',
+        audioUrl: clip.bgm?.audioUrl || '',
+        volume,
+      },
+    });
   }
 </script>
 
@@ -259,37 +466,53 @@
         <button
           type="button"
           onclick={() => (activeTab = 'captions')}
-          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1 cursor-pointer {activeTab ===
           'captions'
             ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
+          title="Gaya Animasi & Warna Subtitle"
         >
           <Type class="w-3.5 h-3.5" />
-          <span>Subtitle Teks</span>
+          <span class="text-[11px]">Teks</span>
         </button>
 
         <button
           type="button"
           onclick={() => (activeTab = 'framing')}
-          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1 cursor-pointer {activeTab ===
           'framing'
             ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
+          title="Format 16:9, Latar Blur, Pan & Zoom"
         >
           <Sliders class="w-3.5 h-3.5" />
-          <span>Framing & Zoom</span>
+          <span class="text-[11px]">Framing</span>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => (activeTab = 'audio_brand')}
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1 cursor-pointer {activeTab ===
+          'audio_brand'
+            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
+            : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
+          title="Watermark Logo & Musik Latar (BGM)"
+        >
+          <Music class="w-3.5 h-3.5" />
+          <span class="text-[11px]">Logo/BGM</span>
         </button>
 
         <button
           type="button"
           onclick={() => (activeTab = 'transcript')}
-          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1 cursor-pointer {activeTab ===
           'transcript'
             ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
+          title="Edit Kata & Sinkronisasi Detik"
         >
           <AlignLeft class="w-3.5 h-3.5" />
-          <span>Transkrip</span>
+          <span class="text-[11px]">Transkrip</span>
         </button>
       </div>
 
@@ -564,6 +787,294 @@
                   </button>
                 {/each}
               </div>
+            </div>
+          </div>
+        {:else if activeTab === 'audio_brand'}
+          <!-- Tab Logo & BGM YouTube -->
+          <div class="space-y-4">
+            <!-- 1. WATERMARK / LOGO KUSTOM -->
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[#E7E9EC] font-semibold text-xs flex items-center gap-1.5">
+                  <ImageIcon class="w-3.5 h-3.5 text-[#B6F36B]" />
+                  <span>Watermark / Logo Kustom</span>
+                </span>
+                {#if clip.watermark?.imageUrl}
+                  <label class="flex items-center gap-1.5 text-[10px] text-[#9299A3] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={clip.watermark?.enabled ?? true}
+                      onchange={(e) => toggleWatermark((e.target as HTMLInputElement).checked)}
+                      class="accent-[#B6F36B] rounded cursor-pointer"
+                    />
+                    <span>{clip.watermark?.enabled ? 'Aktif' : 'Nonaktif'}</span>
+                  </label>
+                {/if}
+              </div>
+
+              <!-- Upload Area atau Preview Logo Terpasang -->
+              {#if !clip.watermark?.imageUrl}
+                <label
+                  class="border-2 border-dashed border-[#292E34] hover:border-[#B6F36B]/60 bg-[#14171A] hover:bg-[#1A1E23] rounded-lg p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all group text-center"
+                >
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onchange={handleWatermarkUpload}
+                    disabled={isUploadingWatermark}
+                    class="hidden"
+                  />
+                  {#if isUploadingWatermark}
+                    <Loader2 class="w-6 h-6 text-[#B6F36B] animate-spin" />
+                    <span class="text-xs text-[#E7E9EC] font-medium">Mengunggah logo...</span>
+                  {:else}
+                    <div class="w-9 h-9 rounded-full bg-[#20242A] group-hover:bg-[#282E36] flex items-center justify-center text-[#B6F36B] transition-colors">
+                      <UploadCloud class="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span class="text-xs font-semibold text-[#E7E9EC] block">Pilih Gambar Watermark / Logo</span>
+                      <span class="text-[10px] text-[#626871] mt-0.5 block">Format PNG transparan, JPG, WebP, SVG</span>
+                    </div>
+                  {/if}
+                </label>
+                {#if watermarkUploadError}
+                  <div class="p-2 rounded bg-red-950/40 border border-red-500/30 text-red-300 text-[10px] flex items-center gap-1.5">
+                    <AlertCircle class="w-3.5 h-3.5 shrink-0 text-red-400" />
+                    <span>{watermarkUploadError}</span>
+                  </div>
+                {/if}
+              {:else}
+                <!-- Tampilan Logo Aktif -->
+                <div class="p-2.5 bg-[#14171A] border border-[#292E34] rounded-lg flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-12 h-12 rounded bg-[#0D0F11] border border-[#292E34] p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                      <img src={clip.watermark.imageUrl} alt="Thumbnail Watermark" class="max-w-full max-h-full object-contain" />
+                    </div>
+                    <div class="min-w-0">
+                      <span class="text-xs font-semibold text-[#E7E9EC] block truncate">Watermark Terpasang</span>
+                      <span class="text-[10px] text-[#B6F36B] font-mono">1:1 Sinkron Preview & Render</span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <label class="h-7 px-2 bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] text-[10px] font-medium rounded border border-[#292E34] flex items-center gap-1 cursor-pointer transition-colors" title="Ganti Logo">
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        onchange={handleWatermarkUpload}
+                        disabled={isUploadingWatermark}
+                        class="hidden"
+                      />
+                      <span>Ganti</span>
+                    </label>
+                    <button
+                      type="button"
+                      onclick={removeWatermark}
+                      class="h-7 w-7 rounded bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 flex items-center justify-center cursor-pointer transition-colors"
+                      title="Hapus Watermark"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Posisi Watermark Safe Zone Gambar 3 -->
+                <div class="space-y-1.5 pt-1">
+                  <div class="flex items-center justify-between text-[#9299A3] text-[11px]">
+                    <span class="flex items-center gap-1">
+                      <ShieldCheck class="w-3 h-3 text-[#FFA07A]" />
+                      <span>Posisi Watermark (Safe Zone)</span>
+                    </span>
+                    <span class="font-mono text-[10px] text-[#B6F36B] font-bold">
+                      {clip.watermark.position === 'top_left' ? 'Kiri Atas' :
+                       clip.watermark.position === 'top_right' ? 'Kanan Atas' :
+                       clip.watermark.position === 'bottom_left' ? 'Kiri Bawah' :
+                       clip.watermark.position === 'bottom_right' ? 'Kanan Bawah' : 'Tengah'}
+                    </span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-1.5">
+                    {#each [
+                      { id: 'top_left' as WatermarkPosition, label: '↖ Kiri Atas' },
+                      { id: 'top_right' as WatermarkPosition, label: '↗ Kanan Atas' },
+                      { id: 'center' as WatermarkPosition, label: '⏺ Tengah' },
+                      { id: 'bottom_left' as WatermarkPosition, label: '↙ Kiri Bawah' },
+                      { id: 'bottom_right' as WatermarkPosition, label: '↘ Kanan Bawah' },
+                    ] as p (p.id)}
+                      <button
+                        type="button"
+                        onclick={() => updateWatermarkPosition(p.id)}
+                        class="py-1.5 px-1 rounded border text-center transition-all cursor-pointer {(clip.watermark?.position || 'top_right') === p.id
+                          ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold shadow-sm ring-1 ring-[#B6F36B]/40'
+                          : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                      >
+                        <span class="text-[10px]">{p.label}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+
+                <!-- Slider Ukuran Watermark -->
+                <div class="space-y-1 pt-1">
+                  <div class="flex items-center justify-between text-[#9299A3] text-[11px]">
+                    <span>Ukuran Skala Watermark</span>
+                    <span class="font-mono text-[#B6F36B] font-bold">{clip.watermark?.sizePercent || 16}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="35"
+                    step="1"
+                    value={clip.watermark?.sizePercent || 16}
+                    oninput={(e) => updateWatermarkSize(parseInt((e.target as HTMLInputElement).value))}
+                    class="w-full accent-[#B6F36B] bg-[#292E34] h-1.5 rounded-lg cursor-pointer"
+                  />
+                  <div class="flex justify-between text-[9px] text-[#626871] font-mono">
+                    <span>10% (Kecil)</span>
+                    <span>16% (Ideal)</span>
+                    <span>35% (Besar)</span>
+                  </div>
+                </div>
+
+                <!-- Slider Transparansi (Opacity) -->
+                <div class="space-y-1 pt-1">
+                  <div class="flex items-center justify-between text-[#9299A3] text-[11px]">
+                    <span>Transparansi / Opasitas</span>
+                    <span class="font-mono text-[#B6F36B] font-bold">{Math.round((clip.watermark?.opacity ?? 0.85) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="1.0"
+                    step="0.05"
+                    value={clip.watermark?.opacity ?? 0.85}
+                    oninput={(e) => updateWatermarkOpacity(parseFloat((e.target as HTMLInputElement).value))}
+                    class="w-full accent-[#B6F36B] bg-[#292E34] h-1.5 rounded-lg cursor-pointer"
+                  />
+                  <div class="flex justify-between text-[9px] text-[#626871] font-mono">
+                    <span>20% (Samar)</span>
+                    <span>85% (Standar)</span>
+                    <span>100% (Solid)</span>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <!-- 2. BACKGROUND MUSIC (BGM) YOUTUBE LINK -->
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[#E7E9EC] font-semibold text-xs flex items-center gap-1.5">
+                  <Music class="w-3.5 h-3.5 text-[#B6F36B]" />
+                  <span>Musik Latar (YouTube Link)</span>
+                </span>
+                {#if clip.bgm?.audioUrl}
+                  <label class="flex items-center gap-1.5 text-[10px] text-[#9299A3] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={clip.bgm?.enabled ?? true}
+                      onchange={(e) => toggleBgm((e.target as HTMLInputElement).checked)}
+                      class="accent-[#B6F36B] rounded cursor-pointer"
+                    />
+                    <span>{clip.bgm?.enabled ? 'Aktif' : 'Mute'}</span>
+                  </label>
+                {/if}
+              </div>
+
+              <!-- Input URL YouTube & Download Button -->
+              {#if !clip.bgm?.audioUrl}
+                <div class="space-y-2">
+                  <p class="text-[11px] text-[#9299A3] leading-relaxed">
+                    Tempelkan link YouTube musik/lagu yang ingin Anda gunakan sebagai background sound klip:
+                  </p>
+                  <div class="flex gap-2">
+                    <input
+                      type="url"
+                      bind:value={bgmInputUrl}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      disabled={isLoadingBgm}
+                      class="flex-1 bg-[#111315] border border-[#292E34] focus:border-[#B6F36B] rounded-lg px-2.5 py-1.5 text-xs text-[#E7E9EC] focus:outline-none placeholder-[#626871]"
+                    />
+                    <button
+                      type="button"
+                      onclick={handleLoadBgm}
+                      disabled={isLoadingBgm || !bgmInputUrl.trim()}
+                      class="h-8 px-3 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] disabled:opacity-50 text-[#111315] font-bold text-xs flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors shadow-sm"
+                    >
+                      {#if isLoadingBgm}
+                        <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                        <span>Mengunduh...</span>
+                      {:else}
+                        <Music class="w-3.5 h-3.5" />
+                        <span>Muat Musik</span>
+                      {/if}
+                    </button>
+                  </div>
+
+                  {#if bgmError}
+                    <div class="p-2 rounded bg-red-950/40 border border-red-500/30 text-red-300 text-[10px] flex items-center gap-1.5">
+                      <AlertCircle class="w-3.5 h-3.5 shrink-0 text-red-400" />
+                      <span>{bgmError}</span>
+                    </div>
+                  {/if}
+                </div>
+              {:else}
+                <!-- Status Musik Terpasang -->
+                <div class="p-2.5 bg-[#14171A] border border-[#292E34] rounded-lg space-y-2">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <div class="w-8 h-8 rounded-full bg-[#B6F36B]/20 text-[#B6F36B] flex items-center justify-center shrink-0">
+                        <Music class="w-4 h-4" />
+                      </div>
+                      <div class="min-w-0">
+                        <span class="text-xs font-semibold text-[#E7E9EC] block truncate" title={clip.bgm?.title}>
+                          {clip.bgm?.title || 'Audio YouTube'}
+                        </span>
+                        <span class="text-[9px] text-[#B6F36B] font-mono">Loop otomatis sinkron video</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onclick={removeBgm}
+                      class="h-7 w-7 rounded bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                      title="Hapus Musik BGM"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {#if bgmSuccessMsg}
+                    <div class="p-1.5 rounded bg-[#B6F36B]/15 border border-[#B6F36B]/30 text-[#B6F36B] text-[10px] flex items-center gap-1.5">
+                      <Check class="w-3 h-3 text-[#B6F36B]" />
+                      <span>{bgmSuccessMsg}</span>
+                    </div>
+                  {/if}
+
+                  <!-- Volume BGM Slider (5% - 50%) -->
+                  <div class="space-y-1 pt-1.5 border-t border-[#292E34]">
+                    <div class="flex items-center justify-between text-[#9299A3] text-[11px]">
+                      <span class="flex items-center gap-1">
+                        <Volume2 class="w-3 h-3 text-[#B6F36B]" />
+                        <span>Volume Musik Latar (BGM)</span>
+                      </span>
+                      <span class="font-mono text-[#B6F36B] font-bold">{clip.bgm?.volume || 15}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      step="1"
+                      value={clip.bgm?.volume || 15}
+                      oninput={(e) => updateBgmVolume(parseInt((e.target as HTMLInputElement).value))}
+                      class="w-full accent-[#B6F36B] bg-[#292E34] h-1.5 rounded-lg cursor-pointer"
+                    />
+                    <div class="flex justify-between text-[9px] text-[#626871] font-mono">
+                      <span>5% (Pelan)</span>
+                      <span>15% (Rekomendasi Vokal Jelas)</span>
+                      <span>50% (Kencang)</span>
+                    </div>
+                  </div>
+                </div>
+              {/if}
             </div>
           </div>
         {:else}

@@ -286,10 +286,21 @@ function buildCandidate(
     panOffset: 0,
     zoomLevel: 1.0,
     captionPreset: config.captionPreset,
+    captionHighlightColor: config.captionHighlightColor || '#B6F36B',
     captionPosition: config.captionPosition || 'bottom',
     captionMaxLines: config.captionMaxLines || 2,
     framingLayout: config.framingLayout || 'crop',
     backgroundStyle: config.backgroundStyle || 'dark_blur',
+    watermark: {
+      enabled: false,
+      position: 'top_right',
+      sizePercent: 16,
+      opacity: 0.85,
+    },
+    bgm: {
+      enabled: false,
+      volume: 15,
+    },
     captions: [...captions],
     bRollCuts,
   };

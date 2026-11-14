@@ -9,6 +9,10 @@ coverage/
 !.env.example
 static/exports/*.mp4
 static/cache/*.mp4
+static/cache/*.m4a
+static/cache/*.mp3
+static/uploads/*
+!static/uploads/.gitkeep
 output_clips/
 rendered_output/
 __pycache__/

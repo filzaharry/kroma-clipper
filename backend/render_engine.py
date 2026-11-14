@@ -2,7 +2,8 @@
 """
 Kroma Clip - Production FFmpeg & Python Video Rendering Engine
 Directly slices YouTube stream, formats to portrait 9:16 (Crop Vertikal OR 16:9 Fit with Dark Blurred Background),
-generates 1:1 styled kinetic subtitle cards with Pillow matching the editor preview, and burns them inside Safe Zone specifications.
+burns custom watermark logo, mixes background music (BGM) from YouTube link,
+and renders 1:1 styled kinetic subtitle cards with Pillow matching the editor preview inside Safe Zone specifications.
 """
 
 import os
@@ -68,7 +69,7 @@ def render_kinetic_card(
     is_mono = (preset == "typewriter")
     font_size = 46 if max_lines <= 2 else 38
     font = get_best_font(font_size, bold=True, mono=is_mono)
-    font_active = get_font = get_best_font(font_size + 4, bold=True, mono=is_mono) if preset in ["hormozi", "karaoke"] else font
+    font_active = get_best_font(font_size + 4, bold=True, mono=is_mono) if preset in ["hormozi", "karaoke"] else font
 
     # Format words case to match preview CSS
     if preset in ["hormozi", "mrbeast", "vox_box", "neon_glow", "cinematic", "fire_gradient"]:
@@ -111,7 +112,6 @@ def render_kinetic_card(
             draw.rounded_rectangle([box_x0, 6, box_x1, card_h - 6], radius=16, fill=(17, 19, 21, 225), outline=(41, 46, 52, 255), width=2)
 
     for line_idx, l_indices in enumerate(lines_of_words):
-        # Measure line width
         widths = []
         for i in l_indices:
             f = font_active if (i == active_idx and preset in ["hormozi", "karaoke"]) else font
@@ -194,6 +194,12 @@ def render_clip(
     caption_highlight_color: str = "#B6F36B",
     pan_offset: float = 0.0,
     zoom_level: float = 1.0,
+    watermark_image: Optional[str] = None,
+    watermark_pos: str = "top_right",
+    watermark_size: float = 16.0,
+    watermark_opacity: float = 0.85,
+    bgm_audio: Optional[str] = None,
+    bgm_volume: float = 0.15,
     captions: Optional[List[Dict]] = None
 ) -> Dict:
     duration = end_time - start_time
@@ -238,7 +244,6 @@ def render_clip(
 
             raw_words = seg.get("words", [])
             if not raw_words:
-                # Fallback if words array is empty: split text evenly
                 tokens = seg.get("text", "").split()
                 if not tokens:
                     continue
@@ -257,7 +262,6 @@ def render_clip(
                 rel_start = max(0.0, round(w_start - start_time, 2))
                 rel_end = min(round(duration, 2), round(w_end - start_time, 2))
 
-                # Smooth transition to next word without gap
                 if w_idx + 1 < len(raw_words):
                     next_start = raw_words[w_idx + 1].get("start", w_end)
                     rel_next_start = min(round(duration, 2), round(next_start - start_time, 2))
@@ -267,7 +271,6 @@ def render_clip(
                 if rel_end <= rel_start:
                     rel_end = min(round(duration, 2), rel_start + 0.3)
 
-                # Determine window of words matching EditorPlayer.svelte visibleWords
                 if len(all_word_texts) <= target_word_count:
                     window_words = all_word_texts
                     local_active_idx = w_idx
@@ -296,12 +299,28 @@ def render_clip(
                 })
 
     # 3. Build FFmpeg command strictly adhering to 9:16 Portrait Canvas & Safe Zone (Gambar 3)
-    print(f"[3/3] Encoding 9:16 portrait video (framing: {framing_layout}, bg: {background_style}) with {len(overlay_cards)} subtitle cuts...", flush=True)
+    print(f"[3/3] Encoding 9:16 portrait video (framing: {framing_layout}, bg: {background_style})...", flush=True)
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
     ffmpeg_cmd = ["ffmpeg", "-y", "-i", raw_video]
+
+    # Subtitle image inputs (indices 1..N)
     for c in overlay_cards:
         ffmpeg_cmd.extend(["-i", c["path"]])
+
+    # Optional Watermark image input
+    has_watermark = bool(watermark_image and os.path.exists(watermark_image))
+    wm_idx = -1
+    if has_watermark:
+        wm_idx = len(overlay_cards) + 1
+        ffmpeg_cmd.extend(["-i", watermark_image])
+
+    # Optional Background Music audio input (looped)
+    has_bgm = bool(bgm_audio and os.path.exists(bgm_audio))
+    bgm_idx = -1
+    if has_bgm:
+        bgm_idx = len(overlay_cards) + (2 if has_watermark else 1)
+        ffmpeg_cmd.extend(["-stream_loop", "-1", "-i", bgm_audio])
 
     filter_chains = []
     target_w, target_h = 1080, 1920
@@ -338,37 +357,64 @@ def render_clip(
             filter_chains.append("[0:v]crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920[v0]")
 
     last_v = "v0"
+
+    # Burn Subtitle cards
     for i, c in enumerate(overlay_cards):
         next_v = f"v{i+1}"
         input_idx = i + 1
         card_h = c["height"]
 
-        # Gambar 3 Safe Zone standard coordinates:
-        # Top boundary: 220px (above is unsafe header)
-        # Bottom boundary: 450px (below is unsafe navigation & user handle)
         if caption_position == "top":
             y_pos = 250  # safely below 220px top boundary
         elif caption_position == "middle":
             if framing_layout == "fit_blur":
-                # In fit_blur, 16:9 video spans y=656 to y=1264.
-                # Placing subtitle right in lower blurred band (y=1270) avoids covering the main video
                 y_pos = 1270 - (card_h // 2)
             else:
                 y_pos = (target_h - card_h) // 2
         else:  # bottom default
-            # Placed above 450px bottom limit (1920 - 450 = 1470)
-            y_pos = 1440 - card_h - 15  # e.g. ~1280px, clear of Reels/TikTok icons & descriptions!
+            y_pos = 1440 - card_h - 15  # safely above 450px bottom boundary
 
         filter_chains.append(
             f"[{last_v}][{input_idx}:v]overlay=(W-w)/2:{y_pos}:enable='between(t,{c['start']},{c['end']})'[{next_v}]"
         )
         last_v = next_v
 
+    # Burn Watermark if enabled
+    if has_watermark:
+        target_wm_w = max(50, min(400, int(target_w * (watermark_size / 100))))
+        filter_chains.append(
+            f"[{wm_idx}:v]scale={target_wm_w}:-1,format=rgba,colorchannelmixer=aa={watermark_opacity}[wm]"
+        )
+
+        # Safe Zone coordinates for Watermark
+        if watermark_pos == "top_left":
+            wm_x, wm_y = "50", "250"
+        elif watermark_pos == "bottom_left":
+            wm_x, wm_y = "50", "1430-h"
+        elif watermark_pos == "bottom_right":
+            wm_x, wm_y = "W-w-110", "1430-h"  # clear 100px Reels icons
+        elif watermark_pos == "center":
+            wm_x, wm_y = "(W-w)/2", "(H-h)/2"
+        else:  # "top_right" default
+            wm_x, wm_y = "W-w-50", "250"
+
+        filter_chains.append(f"[{last_v}][wm]overlay={wm_x}:{wm_y}[v_wm]")
+        last_v = "v_wm"
+
+    # Audio Mixing: Original Video Audio + Background Music (BGM)
+    if has_bgm:
+        vol_float = max(0.01, min(1.0, bgm_volume))
+        filter_chains.append(f"[{bgm_idx}:a]volume={vol_float:.2f}[bgma]")
+        filter_chains.append("[0:a][bgma]amix=inputs=2:duration=first:dropout_transition=2[aout]")
+        audio_map = "[aout]"
+    else:
+        audio_map = "0:a"
+
     filter_complex = ";".join(filter_chains)
     ffmpeg_cmd.extend([
         "-filter_complex", filter_complex,
         "-map", f"[{last_v}]",
-        "-map", "0:a",
+        "-map", audio_map,
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "20",
@@ -394,7 +440,9 @@ def render_clip(
         "file_size": file_size,
         "duration": duration,
         "framing_layout": framing_layout,
-        "background_style": background_style
+        "background_style": background_style,
+        "has_watermark": has_watermark,
+        "has_bgm": has_bgm
     }
 
 def main():
@@ -412,6 +460,12 @@ def main():
     parser.add_argument("--highlight-color", default="#B6F36B", help="Highlight color hex")
     parser.add_argument("--pan-offset", type=float, default=0.0, help="Camera pan offset")
     parser.add_argument("--zoom-level", type=float, default=1.0, help="Camera zoom level")
+    parser.add_argument("--watermark-image", default=None, help="Watermark image file path")
+    parser.add_argument("--watermark-pos", default="top_right", help="Watermark position: top_left, top_right, bottom_left, bottom_right, center")
+    parser.add_argument("--watermark-size", type=float, default=16.0, help="Watermark size percentage of canvas width")
+    parser.add_argument("--watermark-opacity", type=float, default=0.85, help="Watermark opacity: 0.1 to 1.0")
+    parser.add_argument("--bgm-audio", default=None, help="Background music audio file path")
+    parser.add_argument("--bgm-volume", type=float, default=0.15, help="Background music volume multiplier: 0.05 to 0.5")
     parser.add_argument("--captions-json", default="[]", help="JSON string of caption segments")
 
     args = parser.parse_args()
@@ -435,6 +489,12 @@ def main():
         caption_highlight_color=args.highlight_color,
         pan_offset=args.pan_offset,
         zoom_level=args.zoom_level,
+        watermark_image=args.watermark_image,
+        watermark_pos=args.watermark_pos,
+        watermark_size=args.watermark_size,
+        watermark_opacity=args.watermark_opacity,
+        bgm_audio=args.bgm_audio,
+        bgm_volume=args.bgm_volume,
         captions=captions
     )
 

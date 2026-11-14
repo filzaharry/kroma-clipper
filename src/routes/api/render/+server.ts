@@ -22,6 +22,8 @@ export const POST: RequestHandler = async ({ request }) => {
       captionHighlightColor = '#B6F36B',
       panOffset = 0,
       zoomLevel = 1.0,
+      watermark = null,
+      bgm = null,
       captions = [],
     } = data;
 
@@ -79,9 +81,55 @@ export const POST: RequestHandler = async ({ request }) => {
       String(panOffset),
       '--zoom-level',
       String(zoomLevel),
-      '--captions-json',
-      JSON.stringify(captions),
     ];
+
+    // Watermark Logo
+    let watermarkPath: string | null = null;
+    if (watermark?.enabled && watermark?.imageUrl) {
+      if (watermark.imageUrl.startsWith('/uploads/')) {
+        watermarkPath = path.resolve(process.cwd(), 'static', watermark.imageUrl.slice(1));
+      } else if (watermark.imageUrl.startsWith('data:image/')) {
+        const m = watermark.imageUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+        if (m) {
+          const ext = m[1] || 'png';
+          const tmpPath = path.resolve(process.cwd(), `static/uploads/wm_temp_${Date.now()}.${ext}`);
+          fs.writeFileSync(tmpPath, Buffer.from(m[2], 'base64'));
+          watermarkPath = tmpPath;
+        }
+      }
+    }
+
+    if (watermarkPath && fs.existsSync(watermarkPath)) {
+      args.push(
+        '--watermark-image',
+        watermarkPath,
+        '--watermark-pos',
+        watermark.position || 'top_right',
+        '--watermark-size',
+        String(watermark.sizePercent || 16),
+        '--watermark-opacity',
+        String(watermark.opacity ?? 0.85)
+      );
+    }
+
+    // Background Music (BGM)
+    let bgmPath: string | null = null;
+    if (bgm?.enabled && bgm?.audioUrl) {
+      if (bgm.audioUrl.startsWith('/cache/')) {
+        bgmPath = path.resolve(process.cwd(), 'static', bgm.audioUrl.slice(1));
+      }
+    }
+
+    if (bgmPath && fs.existsSync(bgmPath)) {
+      args.push(
+        '--bgm-audio',
+        bgmPath,
+        '--bgm-volume',
+        String((bgm.volume || 15) / 100)
+      );
+    }
+
+    args.push('--captions-json', JSON.stringify(captions));
 
     await new Promise<void>((resolve, reject) => {
       const child = spawn('python3', args);

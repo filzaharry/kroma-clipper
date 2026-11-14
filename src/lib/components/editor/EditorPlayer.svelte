@@ -64,6 +64,24 @@
     showRenderedVideo && renderedTask?.outputUrl ? renderedTask.outputUrl : previewVideoUrl
   );
 
+  // Background Music (BGM) dari Link YouTube
+  let bgmAudioRef: HTMLAudioElement | null = $state(null);
+  const bgmConfig = $derived(clip.bgm);
+  const isBgmActive = $derived(Boolean(bgmConfig?.enabled && bgmConfig?.audioUrl));
+
+  // Watermark Kustom (Logo Gambar)
+  const watermarkConfig = $derived(clip.watermark);
+  const isWatermarkActive = $derived(Boolean(watermarkConfig?.enabled && watermarkConfig?.imageUrl));
+
+  const watermarkPositionClass = $derived.by(() => {
+    const pos = watermarkConfig?.position || 'top_right';
+    if (pos === 'top_left') return 'top-[14%] left-4';
+    if (pos === 'bottom_left') return 'bottom-[25%] left-4';
+    if (pos === 'bottom_right') return 'bottom-[25%] right-10';
+    if (pos === 'center') return 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2';
+    return 'top-[14%] right-4';
+  });
+
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
     clip.sourceVideoId?.replace(/^yt-/, '') ||
@@ -211,9 +229,11 @@
       if (isPlaying) {
         videoRef.play().catch(() => {});
         if (bgVideoRef) bgVideoRef.play().catch(() => {});
+        if (isBgmActive && bgmAudioRef) bgmAudioRef.play().catch(() => {});
       } else {
         videoRef.pause();
         if (bgVideoRef) bgVideoRef.pause();
+        if (bgmAudioRef) bgmAudioRef.pause();
       }
     }
     if (isMuted) {
@@ -229,6 +249,10 @@
       videoRef.play().catch(() => {});
       if (bgVideoRef) bgVideoRef.play().catch(() => {});
       isPlaying = true;
+    }
+    if (bgmAudioRef) {
+      bgmAudioRef.currentTime = 0;
+      if (isBgmActive && !isMuted) bgmAudioRef.play().catch(() => {});
     }
   }
 
@@ -256,16 +280,25 @@
     }
   });
 
-  // Sinkronisasi status Play/Pause
+  // Sinkronisasi status Play/Pause & BGM volume
   $effect(() => {
     if (videoRef) {
       if (isPlaying && videoRef.paused) {
         videoRef.play().catch(() => {});
         if (bgVideoRef) bgVideoRef.play().catch(() => {});
+        if (isBgmActive && bgmAudioRef) bgmAudioRef.play().catch(() => {});
       } else if (!isPlaying && !videoRef.paused) {
         videoRef.pause();
         if (bgVideoRef) bgVideoRef.pause();
+        if (bgmAudioRef) bgmAudioRef.pause();
       }
+    }
+
+    if (bgmAudioRef) {
+      const vol = isMuted
+        ? 0
+        : Math.max(0, Math.min(1, ((bgmConfig?.volume || 15) / 100) * (volume / 100)));
+      bgmAudioRef.volume = vol;
     }
   });
 </script>
@@ -813,6 +846,28 @@
           </div>
         {/if}
       </div>
+
+      <!-- LAYER 4.5: WATERMARK / LOGO KUSTOM (1:1 DENGAN HASIL DOWNLOAD) -->
+      {#if isWatermarkActive}
+        <div class="absolute {watermarkPositionClass} z-28 pointer-events-none transition-all flex items-center justify-center">
+          <img
+            src={watermarkConfig.imageUrl}
+            alt="Watermark Logo"
+            class="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)] max-h-16"
+            style="width: {(watermarkConfig.sizePercent || 16) * 2.76}px; opacity: {watermarkConfig.opacity ?? 0.85};"
+          />
+        </div>
+      {/if}
+
+      <!-- AUDIO BGM ELEMENT (PUTAR SINKRON DENGAN VIDEO) -->
+      {#if isBgmActive}
+        <audio
+          bind:this={bgmAudioRef}
+          src={bgmConfig.audioUrl}
+          loop
+          preload="auto"
+        ></audio>
+      {/if}
 
       <!-- LAYER 5: INTERAKSI KLIK PLAY / PAUSE PADA LAYAR -->
       <button
