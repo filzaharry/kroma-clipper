@@ -14,6 +14,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const rawId = videoId.replace(/^yt-/, '');
     const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
+    const validYtId = cleanId.length === 11 ? cleanId : 'wsCBMCa_DBA';
     const startSec = Math.max(0, Math.floor(Number(startTime)));
     const endSec = Math.max(startSec + 2, Math.ceil(Number(endTime)));
 
@@ -22,7 +23,7 @@ export const POST: RequestHandler = async ({ request }) => {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const filename = `preview_${cleanId}_${startSec}_${endSec}.mp4`;
+    const filename = `preview_${validYtId}_${startSec}_${endSec}.mp4`;
     const filePath = path.join(cacheDir, filename);
     const publicUrl = `/cache/${filename}`;
 
@@ -35,7 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     // 2. Unduh potongan klip cepat menggunakan yt-dlp secara lokal
-    const youtubeUrl = `https://www.youtube.com/watch?v=${rawId}`;
+    const youtubeUrl = `https://www.youtube.com/watch?v=${validYtId}`;
     const args = [
       '--download-sections',
       `*${startSec}-${endSec}`,
@@ -74,3 +75,4 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ success: false, error: err.message || 'Gagal memproses video preview' }, { status: 500 });
   }
 };
+

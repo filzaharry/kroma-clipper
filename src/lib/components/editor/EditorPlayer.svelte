@@ -51,6 +51,19 @@
   let previewVideoUrl = $state<string | null>(null);
   let isLoadingPreview = $state(false);
 
+  // Render task status untuk tombol preview hasil final MP4 jika sudah pernah dirender
+  const renderedTask = $derived(
+    workspace.renderTasks.find(
+      (t) => t.clipId === clip.id && t.status === 'completed' && t.outputUrl
+    )
+  );
+  let showRenderedVideo = $state(false);
+
+  // Sumber video aktif: jika user memilih preview MP4 final, gunakan outputUrl; jika tidak, gunakan previewVideoUrl potongan bersih
+  const activeVideoUrl = $derived(
+    showRenderedVideo && renderedTask?.outputUrl ? renderedTask.outputUrl : previewVideoUrl
+  );
+
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
     clip.sourceVideoId?.replace(/^yt-/, '') ||
@@ -111,11 +124,10 @@
   );
 
   // Ambil file MP4 potongan segmen bersih tanpa komponen YouTube via backend
-  $effect(() => {
+  function fetchPreviewVideo() {
     const vId = youtubeVideoId;
     const start = clip.startTime;
     const end = clip.endTime;
-    let isCancelled = false;
 
     isLoadingPreview = true;
     previewVideoUrl = null;
@@ -131,7 +143,7 @@
     })
       .then((res) => res.json())
       .then((data) => {
-        if (!isCancelled && data.success && data.url) {
+        if (data.success && data.url) {
           previewVideoUrl = data.url;
           currentTime = start;
           isPlaying = true;
@@ -139,12 +151,16 @@
       })
       .catch((e) => console.warn('Preview video error:', e))
       .finally(() => {
-        if (!isCancelled) isLoadingPreview = false;
+        isLoadingPreview = false;
       });
+  }
 
-    return () => {
-      isCancelled = true;
-    };
+  $effect(() => {
+    // Re-fetch saat clip atau rentang waktu berubah
+    const _cid = clip.id;
+    const _start = clip.startTime;
+    const _end = clip.endTime;
+    fetchPreviewVideo();
   });
 
   function setFramingLayout(layout: FramingLayout) {
@@ -457,10 +473,10 @@
               <div class="absolute inset-0 bg-gradient-to-b from-[#181C22] via-[#0B0D0F] to-[#14171A]"></div>
             {:else}
               <!-- Latar Belakang Video Bergerak Sinkron Di-blur & Digelapkan (Gambar 2 Nyata!) -->
-              {#if previewVideoUrl}
+              {#if activeVideoUrl}
                 <video
                   bind:this={bgVideoRef}
-                  src={previewVideoUrl}
+                  src={activeVideoUrl}
                   muted
                   playsinline
                   loop
@@ -488,11 +504,11 @@
             ? 'w-full aspect-video z-15 shadow-[0_10px_35px_rgba(0,0,0,0.9)] border-y border-white/10 bg-black'
             : 'w-full h-full z-10'}"
         >
-          {#if previewVideoUrl}
+          {#if activeVideoUrl}
             <!-- 100% Native Video: Tidak Ada Iframe, Tidak Ada Judul YouTube, Tidak Ada Logo, Tidak Ada Watermark -->
             <video
               bind:this={videoRef}
-              src={previewVideoUrl}
+              src={activeVideoUrl}
               autoplay
               muted={isMuted}
               playsinline
@@ -502,7 +518,7 @@
               class="w-full h-full pointer-events-none transition-transform duration-100 {isFitBlur ? 'object-contain' : 'object-cover'}"
               style="transform: scale({clip.zoomLevel || 1.0}) translateX({clip.panOffset || 0}%);"
             ></video>
-          {:else}
+          {:else if isLoadingPreview}
             <!-- Sementara Video MP4 Diproses (~1 Detik), Tampilkan Poster Bersih dengan Indikator Loading -->
             {#if workspace.activeVideo?.thumbnailUrl}
               <img
@@ -515,6 +531,18 @@
               <Loader2 class="w-6 h-6 text-[#B6F36B] animate-spin" />
               <span class="text-xs font-semibold">Memuat video preview bersih...</span>
               <span class="text-[10px] text-[#9299A3]">100% bebas watermark & komponen YouTube</span>
+            </div>
+          {:else}
+            <!-- Tombol Muat Ulang Preview jika belum siap -->
+            <div class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2.5 p-4 text-center z-20">
+              <span class="text-xs text-[#E7E9EC]">Video preview belum siap</span>
+              <button
+                type="button"
+                onclick={fetchPreviewVideo}
+                class="px-3 py-1.5 rounded-lg bg-[#B6F36B] text-[#111315] font-bold text-xs hover:bg-[#A5E456] transition-colors cursor-pointer"
+              >
+                Muat Ulang Preview
+              </button>
             </div>
           {/if}
 
