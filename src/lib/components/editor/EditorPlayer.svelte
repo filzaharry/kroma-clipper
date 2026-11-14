@@ -71,11 +71,25 @@
     return clip.captions[clip.captions.length - 1];
   });
 
-  // Jendela 4 - 6 kata aktif agar teks di layar vertikal 9:16 tetap ringkas, besar, dan tidak bertumpuk
+  // Posisi vertikal caption: atas, tengah, atau bawah (default)
+  const captionPosClass = $derived.by(() => {
+    const pos = clip.captionPosition || 'bottom';
+    if (pos === 'top') return 'top-8 inset-x-3';
+    if (pos === 'middle') return 'top-1/2 -translate-y-1/2 inset-x-3';
+    return 'bottom-10 inset-x-3';
+  });
+
+  // Jendela kata dinamis sesuai batasan baris (1, 2, atau 3 baris)
   const visibleWords = $derived.by(() => {
     if (!currentSegment?.words || currentSegment.words.length === 0) return null;
     const allWords = currentSegment.words;
-    if (allWords.length <= 6) return allWords;
+    const maxLines = clip.captionMaxLines || 2;
+    // 1 Baris: ~3 kata
+    // 2 Baris: ~6 kata
+    // 3 Baris: ~9 kata
+    const targetWordCount = maxLines === 1 ? 3 : maxLines === 3 ? 9 : 6;
+
+    if (allWords.length <= targetWordCount) return allWords;
 
     // Cari kata yang sedang aktif dibicarakan
     let activeIdx = allWords.findIndex((w) => effectiveTime >= w.start && effectiveTime <= w.end);
@@ -84,10 +98,9 @@
       activeIdx = activeIdx > 0 ? activeIdx - 1 : 0;
     }
 
-    // Jendela 5 kata terpusat pada kata yang sedang dibicarakan
-    const windowSize = 5;
-    const startIdx = Math.max(0, Math.min(activeIdx - 2, allWords.length - windowSize));
-    return allWords.slice(startIdx, startIdx + windowSize);
+    const leadWords = Math.floor(targetWordCount / 2);
+    const startIdx = Math.max(0, Math.min(activeIdx - leadWords, allWords.length - targetWordCount));
+    return allWords.slice(startIdx, startIdx + targetWordCount);
   });
 
   // Kata yang sedang tepat aktif bersuara saat ini
@@ -476,21 +489,7 @@
         <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/40 pointer-events-none z-10"></div>
       </div>
 
-      <!-- LAYER 2: WATERMARK HASIL EDITAN DI POJOK ATAS -->
-      <div class="absolute top-3.5 left-3.5 z-20 pointer-events-none">
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-[10px] font-semibold text-white shadow-lg">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#B6F36B] animate-pulse"></span>
-          <span>@{workspace.activeVideo?.title?.slice(0, 16) || 'kroma_clip'}</span>
-        </div>
-      </div>
-
-      <div class="absolute top-3.5 right-3.5 z-20 pointer-events-none">
-        <span class="text-[9px] font-mono font-bold text-[#B6F36B] bg-black/80 px-2 py-0.5 rounded-md border border-[#B6F36B]/40 tracking-wider shadow-md">
-          KROMA CLIP
-        </span>
-      </div>
-
-      <!-- LAYER 3: GRID (RULE OF THIRDS) -->
+      <!-- LAYER 2: GRID (RULE OF THIRDS) JIKA DIAKTIFKAN USER -->
       {#if showGrid}
         <div class="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-[#B6F36B]/20 z-15">
           <div class="border-r border-b border-[#B6F36B]/20"></div>
@@ -505,28 +504,8 @@
         </div>
       {/if}
 
-      <!-- LAYER 4: SAFE ZONES OVERLAY (TIKTOK/REELS/SHORTS) -->
-      {#if showSafeZones && clip.aspectRatio === '9:16' && viewLayout === 'vertical'}
-        <div class="absolute inset-0 pointer-events-none flex flex-col justify-between p-3.5 z-15">
-          <div class="text-[9px] text-white/60 font-mono border-b border-dashed border-white/25 pb-1">
-            Batas Atas Aman (Reels / TikTok / Shorts)
-          </div>
-
-          <div class="absolute right-2.5 bottom-16 flex flex-col gap-2.5 items-center opacity-40">
-            <div class="w-6 h-6 rounded-full bg-white/20 border border-white/30"></div>
-            <div class="w-6 h-6 rounded-full bg-white/20 border border-white/30"></div>
-            <div class="w-6 h-6 rounded-full bg-white/20 border border-white/30"></div>
-            <div class="w-5 h-5 rounded-full bg-[#B6F36B]/50"></div>
-          </div>
-
-          <div class="text-[9px] text-white/60 font-mono border-t border-dashed border-white/25 pt-1">
-            Batas Bawah Judul & Audio Asli
-          </div>
-        </div>
-      {/if}
-
-      <!-- LAYER 5: 10 PILIHAN GAYA SUBTITLE DINAMIS (KINETIC CAPTIONS) -->
-      <div class="absolute bottom-14 inset-x-3 pointer-events-none text-center z-25">
+      <!-- LAYER 3: 10 PILIHAN GAYA SUBTITLE DINAMIS (KINETIC CAPTIONS) -->
+      <div class="absolute {captionPosClass} pointer-events-none text-center z-25 transition-all duration-200">
         {#if clip.captionPreset === 'hormozi'}
           <!-- 1. HORMOZI POP: Extra Bold, Uppercase, Scale & Pop per kata -->
           <div class="inline-block px-3 py-1.5 font-black tracking-tight text-xs sm:text-sm uppercase drop-shadow-[0_4px_8px_rgba(0,0,0,0.95)] max-w-full break-words leading-tight">

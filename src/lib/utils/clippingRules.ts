@@ -245,6 +245,8 @@ function buildCandidate(
     panOffset: 0,
     zoomLevel: 1.0,
     captionPreset: config.captionPreset,
+    captionPosition: config.captionPosition || 'bottom',
+    captionMaxLines: config.captionMaxLines || 2,
     captions: [...captions],
     bRollCuts,
   };

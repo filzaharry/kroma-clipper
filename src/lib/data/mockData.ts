@@ -12,6 +12,8 @@ export const INITIAL_CLIPPING_RULES: ClippingRuleConfig = {
   detectSpeakerSwitches: true,
   captionPreset: 'hormozi',
   captionHighlightColor: '#B6F36B',
+  captionPosition: 'bottom',
+  captionMaxLines: 2,
   maxCandidates: 8,
 };
 

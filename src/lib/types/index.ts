@@ -13,6 +13,9 @@ export type CaptionStylePreset =
   | 'fire_gradient'
   | 'subtle_box';
 
+export type CaptionPosition = 'bottom' | 'middle' | 'top';
+export type CaptionMaxLines = 1 | 2 | 3;
+
 export interface CaptionWord {
   word: string;
   start: number; // in seconds
@@ -56,6 +59,8 @@ export interface ClippingRuleConfig {
   detectSpeakerSwitches: boolean;
   captionPreset: CaptionStylePreset;
   captionHighlightColor: string;
+  captionPosition?: CaptionPosition;
+  captionMaxLines?: CaptionMaxLines;
   maxCandidates: number;
 }
 
@@ -79,6 +84,8 @@ export interface ClipCandidate {
   panOffset: number; // -50 to 50 percent
   zoomLevel: number; // 1.0 to 2.0
   captionPreset: CaptionStylePreset;
+  captionPosition?: CaptionPosition;
+  captionMaxLines?: CaptionMaxLines;
   captions: CaptionSegment[];
   bRollCuts?: Array<{ timestamp: number; type: 'zoom_in' | 'speaker_switch' | 'graphic' }>;
 }

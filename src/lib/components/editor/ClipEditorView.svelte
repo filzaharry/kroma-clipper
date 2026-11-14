@@ -2,7 +2,13 @@
   import { workspace } from '#lib/state/workspace.svelte';
   import { goto } from '$app/navigation';
   import { formatTimecode } from '#lib/utils/clippingRules';
-  import type { ClipCandidate, CaptionStylePreset, FramingMode } from '#lib/types';
+  import type {
+    ClipCandidate,
+    CaptionStylePreset,
+    CaptionPosition,
+    CaptionMaxLines,
+    FramingMode,
+  } from '#lib/types';
   import EditorPlayer from './EditorPlayer.svelte';
   import EditorTimeline from './EditorTimeline.svelte';
   import {
@@ -15,7 +21,6 @@
     Download,
     Calendar,
     Grid,
-    ShieldAlert,
     Sparkles,
     Check,
     Loader2,
@@ -185,18 +190,6 @@
 
       <button
         type="button"
-        onclick={() => (showSafeZones = !showSafeZones)}
-        class="h-8 px-2.5 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer {showSafeZones
-          ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
-          : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
-        title="Tampilkan / Sembunyikan batasan safe area TikTok & Reels"
-      >
-        <ShieldAlert class="w-3.5 h-3.5" />
-        <span>Zona Aman</span>
-      </button>
-
-      <button
-        type="button"
         onclick={() => (showGrid = !showGrid)}
         class="h-8 px-2 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showGrid
           ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
@@ -349,6 +342,62 @@
                     onclick={() => (highlightColor = color)}
                     aria-label="Pilih warna sorotan {color}"
                   ></button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Posisi Vertikal Caption (Atas, Tengah, Bawah) -->
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[#9299A3] font-medium">Posisi Teks Caption</span>
+                <span class="font-mono text-[10px] text-[#B6F36B] uppercase font-bold">
+                  {clip.captionPosition === 'top' ? 'Atas' : clip.captionPosition === 'middle' ? 'Tengah' : 'Bawah'}
+                </span>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5">
+                {#each [
+                  { id: 'top' as CaptionPosition, label: '⬆️ Atas', desc: 'Atas Video' },
+                  { id: 'middle' as CaptionPosition, label: '⏺️ Tengah', desc: 'Tengah Layar' },
+                  { id: 'bottom' as CaptionPosition, label: '⬇️ Bawah', desc: 'Bawah (Default)' },
+                ] as pos (pos.id)}
+                  <button
+                    type="button"
+                    onclick={() => workspace.updateClip({ ...clip, captionPosition: pos.id })}
+                    class="py-2 px-1.5 rounded-lg border text-center transition-all cursor-pointer {(clip.captionPosition || 'bottom') === pos.id
+                      ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold shadow-sm ring-1 ring-[#B6F36B]/40'
+                      : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC] hover:border-[#383F47]'}"
+                  >
+                    <div class="text-xs">{pos.label}</div>
+                    <div class="text-[9px] text-[#626871] font-mono mt-0.5">{pos.desc}</div>
+                  </button>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Batas Maksimal Baris Caption (1, 2, atau 3 Baris) -->
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[#9299A3] font-medium">Maksimal Jumlah Baris</span>
+                <span class="font-mono text-[10px] text-[#B6F36B] font-bold">
+                  {clip.captionMaxLines || 2} Baris
+                </span>
+              </div>
+              <div class="grid grid-cols-3 gap-1.5">
+                {#each [
+                  { count: 1 as CaptionMaxLines, label: '1 Baris', desc: '3-4 kata' },
+                  { count: 2 as CaptionMaxLines, label: '2 Baris', desc: '6-7 kata' },
+                  { count: 3 as CaptionMaxLines, label: '3 Baris', desc: '9-10 kata' },
+                ] as item (item.count)}
+                  <button
+                    type="button"
+                    onclick={() => workspace.updateClip({ ...clip, captionMaxLines: item.count })}
+                    class="py-2 px-1.5 rounded-lg border text-center transition-all cursor-pointer {(clip.captionMaxLines || 2) === item.count
+                      ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold shadow-sm ring-1 ring-[#B6F36B]/40'
+                      : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC] hover:border-[#383F47]'}"
+                  >
+                    <div class="text-xs font-semibold">{item.label}</div>
+                    <div class="text-[9px] text-[#626871] font-mono mt-0.5">{item.desc}</div>
+                  </button>
                 {/each}
               </div>
             </div>

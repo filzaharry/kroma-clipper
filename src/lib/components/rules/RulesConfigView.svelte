@@ -1,7 +1,13 @@
 <script lang="ts">
   import { workspace } from '#lib/state/workspace.svelte';
   import { goto } from '$app/navigation';
-  import type { AspectRatio, FramingMode, CaptionStylePreset } from '#lib/types';
+  import type {
+    AspectRatio,
+    FramingMode,
+    CaptionStylePreset,
+    CaptionPosition,
+    CaptionMaxLines,
+  } from '#lib/types';
   import {
     SlidersHorizontal,
     Play,
@@ -470,6 +476,53 @@
               <div class="text-[10px] text-[#626871] mt-0.5">{preset.desc}</div>
             </button>
           {/each}
+        </div>
+
+        <!-- Posisi Vertikal & Batas Baris Default -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[#292E34]">
+          <div class="space-y-1.5">
+            <span class="text-xs font-semibold text-[#E7E9EC]">Posisi Teks Caption</span>
+            <p class="text-[11px] text-[#626871]">Penempatan teks di layar video vertikal</p>
+            <div class="grid grid-cols-3 gap-1.5 pt-1">
+              {#each [
+                { id: 'top' as CaptionPosition, label: '⬆️ Atas' },
+                { id: 'middle' as CaptionPosition, label: '⏺️ Tengah' },
+                { id: 'bottom' as CaptionPosition, label: '⬇️ Bawah' },
+              ] as pos (pos.id)}
+                <button
+                  type="button"
+                  onclick={() => workspace.updateRules({ ...rules, captionPosition: pos.id })}
+                  class="py-2 px-1 text-center rounded border text-xs font-medium cursor-pointer transition-colors {(rules.captionPosition || 'bottom') === pos.id
+                    ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold ring-1 ring-[#B6F36B]/40'
+                    : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                >
+                  {pos.label}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <span class="text-xs font-semibold text-[#E7E9EC]">Maksimal Jumlah Baris</span>
+            <p class="text-[11px] text-[#626871]">Batasan baris kata yang muncul bersamaan</p>
+            <div class="grid grid-cols-3 gap-1.5 pt-1">
+              {#each [
+                { count: 1 as CaptionMaxLines, label: '1 Baris' },
+                { count: 2 as CaptionMaxLines, label: '2 Baris' },
+                { count: 3 as CaptionMaxLines, label: '3 Baris' },
+              ] as item (item.count)}
+                <button
+                  type="button"
+                  onclick={() => workspace.updateRules({ ...rules, captionMaxLines: item.count })}
+                  class="py-2 px-1 text-center rounded border text-xs font-medium cursor-pointer transition-colors {(rules.captionMaxLines || 2) === item.count
+                    ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold ring-1 ring-[#B6F36B]/40'
+                    : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                >
+                  {item.label}
+                </button>
+              {/each}
+            </div>
+          </div>
         </div>
       </div>
     </div>
