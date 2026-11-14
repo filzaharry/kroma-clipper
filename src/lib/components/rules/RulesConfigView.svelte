@@ -74,40 +74,56 @@
 </script>
 
 <div class="flex-1 flex flex-col overflow-y-auto bg-[#111315] p-6 lg:p-8">
+  <!-- Info Banner Jika Belum Ada Video Aktif -->
+  {#if !workspace.activeVideo}
+    <div class="mb-5 p-3.5 bg-[#B6F36B]/10 border border-[#B6F36B]/30 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div class="text-[#E7E9EC] flex items-center gap-2">
+        <span class="text-base">💡</span>
+        <span>Belum ada video YouTube aktif. Anda dapat menyesuaikan aturan di bawah, atau masukkan link YouTube terlebih dahulu.</span>
+      </div>
+      <a
+        href="/library"
+        class="px-3 py-1.5 rounded font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] transition-colors whitespace-nowrap cursor-pointer self-start sm:self-auto"
+      >
+        Masukkan Link YouTube
+      </a>
+    </div>
+  {/if}
+
   <!-- Title & Preset Bar -->
   <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
       <h1 class="text-xl font-semibold text-[#E7E9EC] tracking-tight">
-        2. Clipping Preferences & Rule Engine
+        2. Aturan & Preferensi Klip
       </h1>
       <p class="text-xs text-[#9299A3] mt-1">
-        Define rule-based heuristics for highlight identification. Transparent thresholds for energy, cadence, and hooks.
+        Atur parameter deteksi klip otomatis: batas durasi, rasio video, sensitivitas hook, dan gaya subtitle bergerak.
       </p>
     </div>
 
     <!-- Quick Heuristic Presets -->
     <div class="flex items-center gap-1.5 p-1 bg-[#191C20] rounded border border-[#292E34]">
-      <span class="text-[11px] text-[#626871] px-2 font-medium">Presets:</span>
+      <span class="text-[11px] text-[#626871] px-2 font-medium">Preset Cepat:</span>
       <button
         type="button"
         onclick={() => applyRulePreset('viral')}
         class="px-2.5 py-1 text-xs font-medium rounded text-[#E7E9EC] hover:bg-[#20242A] transition-colors cursor-pointer"
       >
-        Viral Shorts
+        Shorts/TikTok Viral
       </button>
       <button
         type="button"
         onclick={() => applyRulePreset('insights')}
         class="px-2.5 py-1 text-xs font-medium rounded text-[#E7E9EC] hover:bg-[#20242A] transition-colors cursor-pointer"
       >
-        Deep Insights
+        Ringkasan Mendalam
       </button>
       <button
         type="button"
         onclick={() => applyRulePreset('podcast')}
         class="px-2.5 py-1 text-xs font-medium rounded text-[#E7E9EC] hover:bg-[#20242A] transition-colors cursor-pointer"
       >
-        Podcast Stems
+        Format Podcast
       </button>
     </div>
   </div>
@@ -121,19 +137,19 @@
           <div class="flex items-center gap-2">
             <Gauge class="w-4 h-4 text-[#B6F36B]" />
             <h3 class="text-sm font-semibold text-[#E7E9EC]">
-              Clip Duration Bounds
+              Batas Durasi Klip
             </h3>
           </div>
           <span class="text-xs font-mono tabular-nums text-[#B6F36B]">
-            {rules.minDuration}s – {rules.maxDuration}s
+            {rules.minDuration}d – {rules.maxDuration}d
           </span>
         </div>
 
         <div class="space-y-3">
           <div>
             <div class="flex justify-between text-xs text-[#9299A3] mb-1.5">
-              <span>Minimum Duration</span>
-              <span class="font-mono tabular-nums">{rules.minDuration} seconds</span>
+              <span>Durasi Minimal</span>
+              <span class="font-mono tabular-nums">{rules.minDuration} detik</span>
             </div>
             <input
               type="range"
@@ -151,8 +167,8 @@
 
           <div>
             <div class="flex justify-between text-xs text-[#9299A3] mb-1.5">
-              <span>Maximum Duration</span>
-              <span class="font-mono tabular-nums">{rules.maxDuration} seconds</span>
+              <span>Durasi Maksimal</span>
+              <span class="font-mono tabular-nums">{rules.maxDuration} detik</span>
             </div>
             <input
               type="range"
@@ -176,10 +192,10 @@
           <div class="flex items-center gap-2">
             <Smartphone class="w-4 h-4 text-[#B6F36B]" />
             <h3 class="text-sm font-semibold text-[#E7E9EC]">
-              Target Canvas Geometry
+              Rasio Aspek Video Target
             </h3>
           </div>
-          <span class="text-xs text-[#9299A3]">Multi-selection enabled</span>
+          <span class="text-xs text-[#9299A3]">Bisa pilih lebih dari satu</span>
         </div>
 
         <div class="grid grid-cols-3 gap-3">
@@ -197,7 +213,7 @@
               <span class="text-[10px] font-mono">9:16</span>
             </div>
             <div>
-              <div class="text-xs font-semibold">Vertical</div>
+              <div class="text-xs font-semibold">Vertikal</div>
               <div class="text-[10px] text-[#626871]">Shorts / TikTok / Reels</div>
             </div>
           </button>
@@ -216,8 +232,8 @@
               <span class="text-[10px] font-mono">1:1</span>
             </div>
             <div>
-              <div class="text-xs font-semibold">Square</div>
-              <div class="text-[10px] text-[#626871]">LinkedIn / Feed</div>
+              <div class="text-xs font-semibold">Kotak</div>
+              <div class="text-[10px] text-[#626871]">Feed / LinkedIn</div>
             </div>
           </button>
 
@@ -236,7 +252,7 @@
             </div>
             <div>
               <div class="text-xs font-semibold">Landscape</div>
-              <div class="text-[10px] text-[#626871]">YouTube / Web</div>
+              <div class="text-[10px] text-[#626871]">YouTube / Layar Lebar</div>
             </div>
           </button>
         </div>
@@ -247,16 +263,16 @@
         <div class="flex items-center gap-2">
           <UserCheck class="w-4 h-4 text-[#B6F36B]" />
           <h3 class="text-sm font-semibold text-[#E7E9EC]">
-            Speaker Framing & Tracking
+            Mode Pembingkaian Kamera (Framing)
           </h3>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs">
           {#each [
-            { id: 'face_track' as FramingMode, label: 'Active Face Follow', desc: 'Auto-centers speaking person' },
-            { id: 'centered' as FramingMode, label: 'Center Crop', desc: 'Fixed center framing' },
-            { id: 'split_screen' as FramingMode, label: 'Split Screen (2-Up)', desc: 'Stacks host & guest vertically' },
-            { id: 'manual_pan' as FramingMode, label: 'Manual Keyframe', desc: 'Adjust crop in Clip Editor' },
+            { id: 'face_track' as FramingMode, label: 'Ikuti Wajah Otomatis', desc: 'Fokus otomatis ke pembicara aktif' },
+            { id: 'centered' as FramingMode, label: 'Potong Tengah', desc: 'Posisi tengah statis' },
+            { id: 'split_screen' as FramingMode, label: 'Layar Belah (2-Up)', desc: 'Susun host & tamu atas-bawah' },
+            { id: 'manual_pan' as FramingMode, label: 'Atur Manual', desc: 'Geser posisi di Editor Klip' },
           ] as mode (mode.id)}
             <button
               type="button"
@@ -281,7 +297,7 @@
           <div class="flex items-center gap-2">
             <Volume2 class="w-4 h-4 text-[#B6F36B]" />
             <h3 class="text-sm font-semibold text-[#E7E9EC]">
-              Audio Energy Cutoff Threshold
+              Ambang Batas Energi Audio
             </h3>
           </div>
           <span class="text-xs font-mono tabular-nums text-[#B6F36B]">
@@ -290,7 +306,7 @@
         </div>
 
         <p class="text-xs text-[#9299A3]">
-          Ignores segments where vocal volume or pitch variance drops below this threshold. Filters low-energy conversational banter.
+          Abaikan bagian saat volume suara atau intonasi turun di bawah nilai ini untuk menghindari obrolan datar.
         </p>
 
         <input
@@ -313,7 +329,7 @@
           <div class="flex items-center gap-2">
             <Sparkles class="w-4 h-4 text-[#B6F36B]" />
             <h3 class="text-sm font-semibold text-[#E7E9EC]">
-              Opening Hook Sensitivity
+              Sensitivitas Hook Pembuka
             </h3>
           </div>
           <span class="text-xs font-mono tabular-nums text-[#B6F36B]">
@@ -322,7 +338,7 @@
         </div>
 
         <p class="text-xs text-[#9299A3]">
-          Heuristic weighting for opening sentence punch: questions, counter-intuitive assertions, numbers, and high speech velocity.
+          Bobot analisis kalimat pembuka (3-5 detik awal): mendeteksi pertanyaan, kata kunci emosional, angka, dan tempo bicara cepat.
         </p>
 
         <input
@@ -340,7 +356,7 @@
 
         <div class="pt-2 border-t border-[#292E34] space-y-2.5">
           <div class="flex items-center justify-between text-xs text-[#9299A3]">
-            <span>Silence Pacing Penalty</span>
+            <span>Penalti Jeda Hening (Silence Pacing)</span>
             <label class="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -360,7 +376,7 @@
           </div>
 
           <div class="flex items-center justify-between text-xs text-[#9299A3]">
-            <span>Detect Speaker Turn Cadence</span>
+            <span>Deteksi Pergantian Pembicara</span>
             <label class="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -382,7 +398,7 @@
           <div class="flex items-center justify-between text-xs text-[#9299A3]">
             <span class="flex items-center gap-1.5">
               <Layers class="w-3.5 h-3.5 text-[#626871]" />
-              Max Candidate Highlights
+              Maksimal Klip Yang Dihasilkan
             </span>
             <select
               value={rules.maxCandidates}
@@ -394,10 +410,10 @@
               }
               class="h-7 px-2 bg-[#14171A] border border-[#292E34] rounded text-[#E7E9EC] font-mono text-xs focus:outline-none cursor-pointer"
             >
-              <option value="4">4 clips</option>
-              <option value="8">8 clips (Default)</option>
-              <option value="12">12 clips</option>
-              <option value="16">16 clips</option>
+              <option value="4">4 klip</option>
+              <option value="8">8 klip (Standar)</option>
+              <option value="12">12 klip</option>
+              <option value="16">16 klip</option>
             </select>
           </div>
         </div>
@@ -409,7 +425,7 @@
           <div class="flex items-center gap-2">
             <Type class="w-4 h-4 text-[#B6F36B]" />
             <h3 class="text-sm font-semibold text-[#E7E9EC]">
-              Caption Engine Preset
+              Gaya Subtitle Otomatis
             </h3>
           </div>
           <div class="flex items-center gap-1.5">
@@ -432,10 +448,10 @@
 
         <div class="grid grid-cols-2 gap-2 text-xs">
           {#each [
-            { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Kinetic', desc: 'Bold sans, punch color pop' },
-            { id: 'minimal' as CaptionStylePreset, label: 'Clean Editorial', desc: 'Restrained, subtitle grade' },
-            { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Word Highlighting', desc: 'Progressive word fill' },
-            { id: 'subtle_box' as CaptionStylePreset, label: 'High-Contrast Box', desc: 'Dark solid backdrop' },
+            { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Kinetic', desc: 'Teks tebal, warna pop per kata' },
+            { id: 'minimal' as CaptionStylePreset, label: 'Minimalis Bersih', desc: 'Subtitle elegan tanpa animasi heboh' },
+            { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow', desc: 'Sorotan warna berjalan mengikuti ucapan' },
+            { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Kontras Tinggi', desc: 'Kotak gelap solid di belakang teks' },
           ] as preset (preset.id)}
             <button
               type="button"
@@ -458,8 +474,8 @@
     class="mt-8 pt-5 border-t border-[#292E34] flex flex-col sm:flex-row items-center justify-between gap-4"
   >
     <div class="text-xs text-[#9299A3]">
-      Active Master: <span class="text-[#E7E9EC] font-medium"
-        >{workspace.activeVideo?.title || 'None'}</span
+      Video Aktif: <span class="text-[#E7E9EC] font-medium"
+        >{workspace.activeVideo?.title || 'Belum ada (Pilih di Menu 1)'}</span
       >
     </div>
 
@@ -469,10 +485,12 @@
       disabled={workspace.isAnalyzing || !workspace.activeVideo}
       class="h-9 px-5 text-xs font-semibold rounded transition-colors flex items-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 {workspace.isAnalyzing
         ? 'bg-[#20242A] text-[#9299A3] cursor-not-allowed border border-[#292E34]'
-        : 'text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445]'}"
+        : !workspace.activeVideo
+          ? 'bg-[#191C20] text-[#626871] border border-[#292E34] cursor-not-allowed'
+          : 'text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445]'}"
     >
       <Play class="w-3.5 h-3.5 fill-current" />
-      <span>{workspace.isAnalyzing ? 'Executing Heuristic Engine...' : 'Run Highlight Detection'}</span>
+      <span>{workspace.isAnalyzing ? 'Sedang Menganalisis Klip...' : !workspace.activeVideo ? 'Masukkan Link Video Terlebih Dahulu' : '⚡ Simpan & Jalankan Analisis AI'}</span>
     </button>
   </div>
 </div>

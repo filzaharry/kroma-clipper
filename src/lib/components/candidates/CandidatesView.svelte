@@ -15,6 +15,8 @@
     Maximize2,
     Search,
     Filter,
+    ArrowRight,
+    SquarePlay,
   } from 'lucide-svelte';
 
   let filterRatio = $state<string>('all');
@@ -58,85 +60,124 @@
   <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
       <h1 class="text-xl font-semibold text-[#E7E9EC] tracking-tight">
-        4. Review Clip Candidates ({workspace.candidates.length})
+        4. Pilihan Klip Viral ({workspace.candidates.length})
       </h1>
       <p class="text-xs text-[#9299A3] mt-1">
-        Algorithmically scored clips based on opening hook potency, vocal dynamics, and thematic pacing.
+        Potongan video yang dipotong otomatis berdasarkan kekuatan kalimat pembuka (hook), intonasi suara, dan potensi retensi penonton.
       </p>
     </div>
 
-    <!-- Filters -->
-    <div class="flex flex-wrap items-center gap-2">
-      <!-- Search -->
-      <div class="relative">
-        <Search class="w-3.5 h-3.5 text-[#626871] absolute left-2.5 top-2.5" />
-        <input
-          type="text"
-          placeholder="Search quotes, topics..."
-          bind:value={searchQuery}
-          class="h-8 pl-8 pr-3 text-xs bg-[#191C20] border border-[#292E34] rounded text-[#E7E9EC] placeholder-[#626871] focus:border-[#B6F36B] focus:outline-none w-48"
-        />
-      </div>
+    <!-- Filters (Hanya muncul jika sudah ada klip) -->
+    {#if workspace.candidates.length > 0}
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Search -->
+        <div class="relative">
+          <Search class="w-3.5 h-3.5 text-[#626871] absolute left-2.5 top-2.5" />
+          <input
+            type="text"
+            placeholder="Cari kutipan, topik..."
+            bind:value={searchQuery}
+            class="h-8 pl-8 pr-3 text-xs bg-[#191C20] border border-[#292E34] rounded text-[#E7E9EC] placeholder-[#626871] focus:border-[#B6F36B] focus:outline-none w-48"
+          />
+        </div>
 
-      <!-- Aspect Ratio Filter Tabs -->
-      <div class="flex items-center p-0.5 bg-[#191C20] rounded border border-[#292E34]">
+        <!-- Aspect Ratio Filter Tabs -->
+        <div class="flex items-center p-0.5 bg-[#191C20] rounded border border-[#292E34]">
+          <button
+            type="button"
+            onclick={() => (filterRatio = 'all')}
+            class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === 'all'
+              ? 'bg-[#20242A] text-[#B6F36B]'
+              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+          >
+            Semua Rasio
+          </button>
+          <button
+            type="button"
+            onclick={() => (filterRatio = '9:16')}
+            class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '9:16'
+              ? 'bg-[#20242A] text-[#B6F36B]'
+              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+          >
+            9:16 Vertikal
+          </button>
+          <button
+            type="button"
+            onclick={() => (filterRatio = '1:1')}
+            class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '1:1'
+              ? 'bg-[#20242A] text-[#B6F36B]'
+              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+          >
+            1:1 Kotak
+          </button>
+          <button
+            type="button"
+            onclick={() => (filterRatio = '16:9')}
+            class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '16:9'
+              ? 'bg-[#20242A] text-[#B6F36B]'
+              : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+          >
+            16:9 Landscape
+          </button>
+        </div>
+
+        <!-- High Score Toggle -->
         <button
           type="button"
-          onclick={() => (filterRatio = 'all')}
-          class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === 'all'
-            ? 'bg-[#20242A] text-[#B6F36B]'
-            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+          onclick={() => (minScoreFilter = minScoreFilter === 90 ? 0 : 90)}
+          class="h-8 px-2.5 text-xs font-medium rounded border transition-colors flex items-center gap-1.5 cursor-pointer {minScoreFilter === 90
+            ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B]'
+            : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
         >
-          All Ratios
-        </button>
-        <button
-          type="button"
-          onclick={() => (filterRatio = '9:16')}
-          class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '9:16'
-            ? 'bg-[#20242A] text-[#B6F36B]'
-            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-        >
-          9:16 Shorts
-        </button>
-        <button
-          type="button"
-          onclick={() => (filterRatio = '1:1')}
-          class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '1:1'
-            ? 'bg-[#20242A] text-[#B6F36B]'
-            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-        >
-          1:1 Feed
-        </button>
-        <button
-          type="button"
-          onclick={() => (filterRatio = '16:9')}
-          class="px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer {filterRatio === '16:9'
-            ? 'bg-[#20242A] text-[#B6F36B]'
-            : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
-        >
-          16:9
+          <Filter class="w-3 h-3" />
+          <span>Skor 90+ Saja</span>
         </button>
       </div>
-
-      <!-- High Score Toggle -->
-      <button
-        type="button"
-        onclick={() => (minScoreFilter = minScoreFilter === 90 ? 0 : 90)}
-        class="h-8 px-2.5 text-xs font-medium rounded border transition-colors flex items-center gap-1.5 cursor-pointer {minScoreFilter === 90
-          ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B]'
-          : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
-      >
-        <Filter class="w-3 h-3" />
-        <span>Score 90+ Only</span>
-      </button>
-    </div>
+    {/if}
   </div>
 
-  <!-- Candidate Grid -->
-  {#if filteredCandidates.length === 0}
+  <!-- Candidate Grid or Empty State -->
+  {#if workspace.candidates.length === 0}
+    <!-- Empty State Bersih Tanpa Dummy List -->
+    <div class="rounded-xl border border-dashed border-[#292E34] p-12 text-center bg-[#14171A] max-w-2xl">
+      <div class="w-14 h-14 rounded-full bg-[#191C20] border border-[#292E34] flex items-center justify-center mx-auto mb-4 text-[#B6F36B]">
+        <Scissors class="w-7 h-7" />
+      </div>
+      <h3 class="text-sm font-semibold text-[#E7E9EC]">Belum Ada Klip yang Dihasilkan</h3>
+      <p class="text-xs text-[#9299A3] mt-1.5 max-w-md mx-auto leading-relaxed">
+        {#if !workspace.activeVideo}
+          Anda belum memasukkan video YouTube. Silakan masukkan link video YouTube terlebih dahulu untuk mulai mendeteksi klip.
+        {:else}
+          Video YouTube sudah dimasukkan. Jalankan <strong>Analisis AI</strong> untuk memotong klip dan mendeteksi segmen terbaik secara otomatis.
+        {/if}
+      </p>
+      <div class="mt-5 flex items-center justify-center gap-3">
+        {#if !workspace.activeVideo}
+          <button
+            type="button"
+            onclick={() => goto('/library')}
+            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer"
+          >
+            <SquarePlay class="w-4 h-4" />
+            <span>Masukkan Link YouTube</span>
+            <ArrowRight class="w-3.5 h-3.5" />
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => { workspace.runAnalysis(); goto('/analysis'); }}
+            class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors inline-flex items-center gap-2 cursor-pointer"
+          >
+            <Sparkles class="w-3.5 h-3.5 fill-current" />
+            <span>⚡ Jalankan Analisis AI Sekarang</span>
+          </button>
+        {/if}
+      </div>
+    </div>
+  {:else if filteredCandidates.length === 0}
     <div class="p-12 text-center bg-[#191C20] border border-[#292E34] rounded-lg">
-      <p class="text-sm text-[#E7E9EC] font-medium">No clip candidates match this filter.</p>
-      <p class="text-xs text-[#9299A3] mt-1">Try lowering the score cutoff or resetting search criteria.</p>
+      <p class="text-sm text-[#E7E9EC] font-medium">Tidak ada klip yang cocok dengan filter ini.</p>
+      <p class="text-xs text-[#9299A3] mt-1">Coba turunkan batas skor atau hapus kata kunci pencarian.</p>
       <button
         type="button"
         onclick={() => {
@@ -146,7 +187,7 @@
         }}
         class="mt-4 px-3 py-1.5 text-xs font-medium text-[#111315] bg-[#B6F36B] rounded cursor-pointer"
       >
-        Reset Filters
+        Reset Filter
       </button>
     </div>
   {:else}
@@ -171,7 +212,7 @@
                 </span>
                 {#if isRejected}
                   <span class="text-[10px] font-mono text-[#EF4444] px-1.5 py-0.5 rounded bg-[#111315] border border-[#EF4444]/30">
-                    REJECTED
+                    DITOLAK
                   </span>
                 {/if}
               </div>
@@ -184,7 +225,7 @@
                 </span>
                 <span>·</span>
                 <span class="font-mono tabular-nums text-[#B6F36B]">
-                  {clip.duration}s duration
+                  {clip.duration} detik
                 </span>
               </div>
             </div>
@@ -192,7 +233,7 @@
             <!-- Viral Score Badge -->
             <div class="flex flex-col items-end shrink-0">
               <div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#20242A] border border-[#292E34]">
-                <span class="text-[10px] text-[#626871] uppercase font-mono">Score</span>
+                <span class="text-[10px] text-[#626871] uppercase font-mono">Skor</span>
                 <span class="text-sm font-mono tabular-nums font-bold text-[#B6F36B]">
                   {clip.score}
                 </span>
@@ -202,7 +243,7 @@
 
           <!-- Excerpt Quote -->
           <div class="p-3 rounded bg-[#111315] border border-[#292E34] text-xs text-[#E7E9EC] leading-relaxed mb-4 italic">
-            {clip.excerptQuote}
+            "{clip.excerptQuote}"
           </div>
 
           <!-- Heuristic Metrics Bar -->
@@ -220,7 +261,7 @@
             <div class="p-2 rounded bg-[#14171A] border border-[#292E34] flex items-center justify-between">
               <span class="text-[#626871] flex items-center gap-1">
                 <Volume2 class="w-3 h-3 text-[#B6F36B]" />
-                Energy
+                Energi
               </span>
               <span class="font-mono tabular-nums text-[#E7E9EC] font-medium">
                 {clip.energyScore}%
@@ -236,7 +277,7 @@
                 {:else}
                   <Maximize2 class="w-3 h-3 text-[#B6F36B]" />
                 {/if}
-                Aspect
+                Rasio
               </span>
               <span class="font-mono tabular-nums text-[#E7E9EC] font-medium">
                 {clip.aspectRatio}
@@ -261,19 +302,19 @@
               <button
                 type="button"
                 onclick={() => workspace.approveClip(clip.id)}
-                title="Approve clip"
+                title="Tandai Disetujui"
                 class="h-8 px-2.5 rounded border transition-colors flex items-center gap-1 text-xs cursor-pointer {isApproved
                   ? 'bg-[#B6F36B]/10 text-[#B6F36B] border-[#B6F36B]/40'
                   : 'bg-[#20242A] text-[#9299A3] border-[#292E34] hover:text-[#E7E9EC]'}"
               >
                 <Check class="w-3.5 h-3.5" />
-                <span>{isApproved ? 'Approved' : 'Approve'}</span>
+                <span>{isApproved ? 'Disetujui' : 'Setujui'}</span>
               </button>
 
               <button
                 type="button"
                 onclick={() => workspace.rejectClip(clip.id)}
-                title="Reject clip"
+                title="Tolak Klip"
                 class="h-8 px-2 rounded border transition-colors flex items-center gap-1 text-xs cursor-pointer {isRejected
                   ? 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/40'
                   : 'bg-[#20242A] text-[#626871] border-[#292E34] hover:text-[#EF4444]'}"
@@ -284,7 +325,7 @@
               <button
                 type="button"
                 onclick={() => handleQueueRender(clip)}
-                title="Queue export render"
+                title="Kirim ke Antrean Render"
                 class="h-8 px-2.5 rounded bg-[#20242A] hover:bg-[#262B32] text-[#9299A3] hover:text-[#E7E9EC] border border-[#292E34] text-xs flex items-center gap-1 cursor-pointer"
               >
                 <Download class="w-3.5 h-3.5" />
@@ -297,7 +338,7 @@
                 class="h-8 px-3.5 rounded bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] font-semibold text-xs flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 cursor-pointer"
               >
                 <Scissors class="w-3.5 h-3.5 stroke-[2.2]" />
-                <span>Open in Editor</span>
+                <span>Buka di Editor</span>
               </button>
             </div>
           </div>

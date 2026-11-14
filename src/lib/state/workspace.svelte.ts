@@ -5,38 +5,23 @@ import type {
   RenderTask,
   ScheduledPost,
 } from '#lib/types';
-import {
-  MOCK_VIDEOS,
-  INITIAL_CLIPPING_RULES,
-  MOCK_CLIPS,
-  MOCK_RENDER_TASKS,
-  MOCK_SCHEDULED_POSTS,
-} from '#lib/data/mockData';
+import { INITIAL_CLIPPING_RULES } from '#lib/data/mockData';
 import { evaluateHighlightCandidates, formatTimecode } from '#lib/utils/clippingRules';
 
 export class WorkspaceStore {
-  // Primary collections
-  videos = $state<VideoSource[]>(MOCK_VIDEOS);
-  activeVideoId = $state<string | null>(MOCK_VIDEOS[0]?.id || null);
+  // Primary collections — Bersih tanpa dummy data awal
+  videos = $state<VideoSource[]>([]);
+  activeVideoId = $state<string | null>(null);
   rules = $state<ClippingRuleConfig>({ ...INITIAL_CLIPPING_RULES });
-  candidates = $state<ClipCandidate[]>([...MOCK_CLIPS]);
-  activeClipId = $state<string | null>(MOCK_CLIPS[0]?.id || null);
-  renderTasks = $state<RenderTask[]>([...MOCK_RENDER_TASKS]);
-  scheduledPosts = $state<ScheduledPost[]>([...MOCK_SCHEDULED_POSTS]);
+  candidates = $state<ClipCandidate[]>([]);
+  activeClipId = $state<string | null>(null);
+  renderTasks = $state<RenderTask[]>([]);
+  scheduledPosts = $state<ScheduledPost[]>([]);
 
   // Analysis state
   isAnalyzing = $state<boolean>(false);
-  analysisProgress = $state<number>(100);
-  analysisLogs = $state<string[]>([
-    '[00:00:00] Ingesting master PCM audio channel 1 & 2...',
-    '[00:00:02] Audio RMS power peak detected @ 02:22 - 03:09 (+14.2dB)',
-    '[00:00:04] Hook Trigger: "Why do most modern architectures fail..." (HookScore: 98)',
-    '[00:00:05] Highlight Candidate 01 Registered: 47.0s [142.0s - 189.0s] - Score: 96/100',
-    '[00:00:06] Hook Trigger: "Physics does not have a stack trace..." (HookScore: 95)',
-    '[00:00:07] Highlight Candidate 02 Registered: 38.0s [310.0s - 348.0s] - Score: 93/100',
-    '[00:00:08] Applying 9:16 safe area boundaries & subtitle word timestamps...',
-    '[00:00:09] Engine execution complete. Candidates ready for editorial review.',
-  ]);
+  analysisProgress = $state<number>(0);
+  analysisLogs = $state<string[]>([]);
 
   // Active timers tracking for memory leak prevention
   private analysisTimer: ReturnType<typeof setInterval> | null = null;
@@ -90,8 +75,8 @@ export class WorkspaceStore {
     this.isAnalyzing = true;
     this.analysisProgress = 10;
     this.analysisLogs = [
-      `[00:00:00] Ingesting master PCM audio track for "${video.title}"...`,
-      `[00:00:01] Audio sampling rate: ${video.sampleRate}Hz, ${video.audioChannels} channels.`,
+      `[00:00:00] Mengekstrak frekuensi audio & vokal dari "${video.title}"...`,
+      `[00:00:01] Parameter audio: ${video.sampleRate}Hz, ${video.audioChannels} channel stereo.`,
     ];
 
     let current = 10;
@@ -105,20 +90,20 @@ export class WorkspaceStore {
         this.analysisProgress = 100;
         this.isAnalyzing = false;
 
-        // Evaluate highlights using the pure rules utility
+        // Evaluasi klip dengan heuristic rules engine
         const newCandidates = evaluateHighlightCandidates(video, this.rules);
         if (newCandidates.length > 0) {
           this.candidates = newCandidates;
           this.activeClipId = newCandidates[0].id;
           this.analysisLogs.push(
-            `[00:00:07] Successfully generated ${newCandidates.length} highlight candidates from transcripts.`,
-            `[00:00:08] Top scored clip: "${newCandidates[0].title}" (Score: ${newCandidates[0].score}/100).`,
-            `[00:00:09] Engine execution complete. Ready for editorial review.`
+            `[00:00:07] Berhasil menemukan ${newCandidates.length} klip kandidat terbaik berdurasi ${this.rules.minDuration}s - ${this.rules.maxDuration}s.`,
+            `[00:00:08] Klip dengan retensi & hook tertinggi: "${newCandidates[0].title}" (Skor: ${newCandidates[0].score}/100).`,
+            `[00:00:09] Analisis AI selesai! Klip siap untuk diedit atau diekspor ke video vertikal 9:16.`
           );
         } else {
           this.analysisLogs.push(
-            `[00:00:07] Notice: No segments matched duration bounds (${this.rules.minDuration}s - ${this.rules.maxDuration}s) or energy threshold (${this.rules.audioEnergyThreshold}%).`,
-            `[00:00:08] Try adjusting your clipping rule bounds.`
+            `[00:00:07] Catatan: Tidak ada bagian yang memenuhi durasi (${this.rules.minDuration}s - ${this.rules.maxDuration}s) atau ambang energi (${this.rules.audioEnergyThreshold}%).`,
+            `[00:00:08] Saran: Longgarkan durasi minimal/maksimal di menu Aturan Klip.`
           );
         }
 
@@ -127,11 +112,11 @@ export class WorkspaceStore {
         this.analysisProgress = current;
         if (current >= 28 && this.analysisLogs.length === 2) {
           this.analysisLogs.push(
-            `[00:00:03] Speech energy filtering: cutoff set to ${this.rules.audioEnergyThreshold}%.`
+            `[00:00:03] Menyaring dinamika energi suara: ambang batas diset ke ${this.rules.audioEnergyThreshold}%.`
           );
         } else if (current >= 64 && this.analysisLogs.length === 3) {
           this.analysisLogs.push(
-            `[00:00:05] Hook detection pass: sensitivity ${this.rules.hookSensitivity}% across opening cues.`
+            `[00:00:05] Memindai hook 3-5 detik pembuka: sensitivitas ${this.rules.hookSensitivity}% pada kalimat tanya & kata kunci emosional.`
           );
         }
       }

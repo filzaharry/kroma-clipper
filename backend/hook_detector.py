@@ -80,3 +80,4 @@ if __name__ == "__main__":
     ]
     results = analyze_transcript_for_hooks(sample, 20, 60)
     print(f"Detected {len(results)} candidate highlights.")
+

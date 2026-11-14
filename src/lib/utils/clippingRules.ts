@@ -65,6 +65,9 @@ export function evaluateHighlightCandidates(
   }
 
   const hookKeywords = [
+    'kenapa', 'mengapa', 'bagaimana', 'rahasia', 'kesalahan terbesar', 'jarang orang tahu',
+    'faktanya', 'ternyata', 'kalau kamu', 'jangan pernah', 'berhenti', 'mengubah segalanya',
+    'masalah terbesar', 'apa yang terjadi', 'jangan', 'kunci sukses', 'tips',
     'why', 'how', 'secret', 'biggest mistake', 'nobody talks about',
     'truth is', 'if you', 'never', 'stopped', 'changed everything',
     'the problem with', 'what happens when', 'don\'t'

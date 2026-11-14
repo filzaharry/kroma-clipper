@@ -7,13 +7,13 @@
   const pathname = $derived(page.url.pathname);
 
   const stageLabel = $derived.by(() => {
-    if (pathname.startsWith('/library')) return '1. YouTube Ingest';
-    if (pathname.startsWith('/rules')) return '2. Clipping Rules';
-    if (pathname.startsWith('/analysis')) return '3. Heuristic Engine';
-    if (pathname.startsWith('/editor')) return '5. Clip Editor (NLE)';
-    if (pathname.startsWith('/export')) return '6. Render Queue';
-    if (pathname.startsWith('/publish')) return '7. Social Schedule';
-    return `4. Clip Candidates (${workspace.candidates.length})`;
+    if (pathname.startsWith('/library')) return '1. Input Link YouTube';
+    if (pathname.startsWith('/rules')) return '2. Aturan Klip';
+    if (pathname.startsWith('/analysis')) return '3. Analisis AI';
+    if (pathname.startsWith('/editor')) return '5. Editor Klip (NLE)';
+    if (pathname.startsWith('/export')) return '6. Antrean Render';
+    if (pathname.startsWith('/publish')) return '7. Jadwal Medsos';
+    return `4. Pilihan Klip (${workspace.candidates.length})`;
   });
 
   function handleAction() {
@@ -28,7 +28,7 @@
       }
     } else {
       workspace.runAnalysis(() => {
-        // Callback after completion if needed
+        // Callback after completion
       });
       goto('/analysis');
     }
@@ -66,7 +66,7 @@
 
   <!-- Center Zone: Active Workspace Stage Breadcrumb -->
   <div class="hidden md:flex items-center gap-2 text-xs text-[#9299A3]">
-    <span class="text-[#626871]">Workspace</span>
+    <span class="text-[#626871]">Area Kerja</span>
     <span class="text-[#626871]">/</span>
     <span class="text-[#E7E9EC] font-medium">
       {stageLabel}
@@ -79,22 +79,24 @@
       <button
         type="button"
         onclick={handleAction}
-        class="h-8 px-3.5 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50"
+        class="h-8 px-3.5 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 cursor-pointer"
       >
         <Download class="w-3.5 h-3.5 stroke-[2.2]" />
-        <span>Queue Render</span>
+        <span>Kirim ke Render</span>
       </button>
     {:else}
       <button
         type="button"
         onclick={handleAction}
         disabled={workspace.isAnalyzing || !workspace.activeVideo}
-        class="h-8 px-3.5 text-xs font-semibold rounded transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 {workspace.isAnalyzing
+        class="h-8 px-3.5 text-xs font-semibold rounded transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 cursor-pointer {workspace.isAnalyzing
           ? 'bg-[#20242A] text-[#9299A3] cursor-not-allowed border border-[#292E34]'
-          : 'text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445]'}"
+          : !workspace.activeVideo
+            ? 'bg-[#191C20] text-[#626871] border border-[#292E34] cursor-not-allowed'
+            : 'text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445]'}"
       >
         <Play class="w-3.5 h-3.5 fill-current {workspace.isAnalyzing ? 'animate-pulse' : ''}" />
-        <span>{workspace.isAnalyzing ? 'Analyzing Audio & Hooks...' : 'Process Video Rules'}</span>
+        <span>{workspace.isAnalyzing ? 'Menganalisis Klip...' : !workspace.activeVideo ? 'Masukkan Link Video Dulu' : '⚡ Mulai Analisis AI'}</span>
       </button>
     {/if}
   </div>

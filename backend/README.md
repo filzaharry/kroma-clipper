@@ -42,3 +42,4 @@ Dokumentasi Swagger API interaktif otomatis aktif di:
 - `GET /health`: Health check status engine FFmpeg & yt-dlp.
 - `POST /api/analyze-hooks`: Menganalisis URL YouTube/transkrip dan mengembalikan segmen klip terbaik berdasar skor hook, speech density, dan emosi pembicara.
 - `POST /api/render`: Memotong video dari YouTube, mengubah rasio jadi 9:16 (Shorts/TikTok/Reels), membakar subtitle kinetic otomatis, dan menempelkan watermark.
+

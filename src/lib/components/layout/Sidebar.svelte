@@ -18,13 +18,13 @@
   const pathname = $derived(page.url.pathname);
 
   const navItems = $derived([
-    { path: '/library', label: '1. YouTube Ingest', icon: SquarePlay, count: null },
-    { path: '/rules', label: '2. Rule Config', icon: SlidersHorizontal, count: null },
-    { path: '/analysis', label: '3. Heuristic Engine', icon: Cpu, count: null },
-    { path: '/candidates', label: '4. Clip Candidates', icon: Layers, count: workspace.candidates.length || null },
-    { path: '/editor', label: '5. Clip Editor (NLE)', icon: Scissors, count: null },
-    { path: '/export', label: '6. Render Queue', icon: Download, count: workspace.completedRenderCount || null },
-    { path: '/publish', label: '7. Social Schedule', icon: Calendar, count: null },
+    { path: '/library', label: '1. Input Link YouTube', icon: SquarePlay, count: null },
+    { path: '/rules', label: '2. Aturan Klip', icon: SlidersHorizontal, count: null },
+    { path: '/analysis', label: '3. Analisis AI', icon: Cpu, count: null },
+    { path: '/candidates', label: '4. Pilihan Klip', icon: Layers, count: workspace.candidates.length || null },
+    { path: '/editor', label: '5. Editor Klip (NLE)', icon: Scissors, count: null },
+    { path: '/export', label: '6. Antrean Render', icon: Download, count: workspace.completedRenderCount || null },
+    { path: '/publish', label: '7. Jadwal Medsos', icon: Calendar, count: null },
   ]);
 
   function isItemActive(itemPath: string) {
@@ -39,7 +39,7 @@
   <!-- Navigation Workflow List -->
   <div class="p-3 space-y-1">
     <div class="px-3 pt-2 pb-2 text-[11px] font-semibold text-[#626871] uppercase tracking-wider">
-      Production Pipeline
+      Alur Kerja Video
     </div>
     {#each navItems as item (item.path)}
       {@const isActive = isItemActive(item.path)}
@@ -70,7 +70,7 @@
   <!-- Active Source Inspector Card -->
   <div class="p-3 border-t border-[#292E34] bg-[#111315]">
     <div class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider mb-2 flex items-center justify-between">
-      <span>Active Master File</span>
+      <span>Video YouTube Aktif</span>
       <FileVideo class="w-3.5 h-3.5 text-[#626871]" />
     </div>
 
@@ -83,28 +83,28 @@
 
         <div class="grid grid-cols-2 gap-1.5 text-[11px] text-[#9299A3]">
           <div class="bg-[#191C20] px-2 py-1.5 rounded border border-[#292E34]">
-            <div class="text-[10px] text-[#626871]">Duration</div>
+            <div class="text-[10px] text-[#626871]">Durasi</div>
             <div class="font-mono tabular-nums text-[#E7E9EC] font-medium">
               {formatDuration(video.durationSeconds)}
             </div>
           </div>
 
           <div class="bg-[#191C20] px-2 py-1.5 rounded border border-[#292E34]">
-            <div class="text-[10px] text-[#626871]">Resolution</div>
+            <div class="text-[10px] text-[#626871]">Resolusi</div>
             <div class="font-mono tabular-nums text-[#E7E9EC] font-medium">
               {video.resolution.width}x{video.resolution.height}
             </div>
           </div>
 
           <div class="bg-[#191C20] px-2 py-1.5 rounded border border-[#292E34]">
-            <div class="text-[10px] text-[#626871]">Framerate</div>
+            <div class="text-[10px] text-[#626871]">Kecepatan</div>
             <div class="font-mono tabular-nums text-[#E7E9EC] font-medium">
               {video.fps} fps
             </div>
           </div>
 
           <div class="bg-[#191C20] px-2 py-1.5 rounded border border-[#292E34]">
-            <div class="text-[10px] text-[#626871]">Audio Ch.</div>
+            <div class="text-[10px] text-[#626871]">Kanal Audio</div>
             <div class="font-mono tabular-nums text-[#E7E9EC] font-medium">
               {video.audioChannels} ch ({video.sampleRate / 1000}kHz)
             </div>
@@ -118,13 +118,14 @@
           </div>
           <div class="flex items-center gap-1 text-[#B6F36B]">
             <Activity class="w-3 h-3" />
-            <span>{video.status === 'ready' ? 'Analyzed' : 'Processing'}</span>
+            <span>{video.status === 'ready' ? 'Siap Dianalisis' : 'Diproses'}</span>
           </div>
         </div>
       </div>
     {:else}
-      <div class="text-xs text-[#626871] py-3 text-center">
-        No master video selected
+      <div class="text-xs text-[#626871] py-4 text-center leading-relaxed">
+        Belum ada video aktif.<br />
+        <span class="text-[10px] text-[#9299A3]">Masukkan link YouTube untuk mulai.</span>
       </div>
     {/if}
   </div>

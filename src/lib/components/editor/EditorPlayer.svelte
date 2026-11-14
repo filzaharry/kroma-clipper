@@ -160,7 +160,7 @@
         <div
           class="text-[9px] text-[#626871] font-mono border-b border-dashed border-[#626871]/40 pb-1"
         >
-          Top Header Safe Zone (Reels / TikTok)
+          Batas Atas Aman (Reels / TikTok / Shorts)
         </div>
 
         <!-- Right side engagement buttons simulator -->
@@ -175,7 +175,7 @@
         <div
           class="text-[9px] text-[#626871] font-mono border-t border-dashed border-[#626871]/40 pt-1"
         >
-          Bottom Title & Audio Track Margin
+          Batas Bawah Judul & Musik
         </div>
       </div>
     {/if}

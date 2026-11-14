@@ -71,7 +71,7 @@
         type="button"
         onclick={() => (currentTime = clip.startTime)}
         class="w-7 h-7 rounded hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] flex items-center justify-center transition-colors cursor-pointer"
-        title="Return to In Point"
+        title="Kembali ke Titik Awal"
       >
         <SkipBack class="w-3.5 h-3.5" />
       </button>
@@ -80,7 +80,7 @@
         type="button"
         onclick={() => (currentTime = Math.max(clip.startTime, currentTime - 1 / 30))}
         class="px-1.5 h-7 rounded hover:bg-[#20242A] text-[10px] font-mono text-[#9299A3] hover:text-[#E7E9EC] flex items-center justify-center transition-colors cursor-pointer"
-        title="Step Backward 1 Frame"
+        title="Mundur 1 Frame (-1f)"
       >
         -1f
       </button>
@@ -89,7 +89,7 @@
         type="button"
         onclick={() => (isPlaying = !isPlaying)}
         class="w-8 h-8 rounded bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 cursor-pointer"
-        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+        title={isPlaying ? 'Jeda (Spasi)' : 'Putar (Spasi)'}
       >
         {#if isPlaying}
           <Pause class="w-4 h-4 fill-current" />
@@ -102,7 +102,7 @@
         type="button"
         onclick={() => (currentTime = Math.min(clip.endTime, currentTime + 1 / 30))}
         class="px-1.5 h-7 rounded hover:bg-[#20242A] text-[10px] font-mono text-[#9299A3] hover:text-[#E7E9EC] flex items-center justify-center transition-colors cursor-pointer"
-        title="Step Forward 1 Frame"
+        title="Maju 1 Frame (+1f)"
       >
         +1f
       </button>
@@ -111,7 +111,7 @@
         type="button"
         onclick={() => (currentTime = clip.endTime)}
         class="w-7 h-7 rounded hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] flex items-center justify-center transition-colors cursor-pointer"
-        title="Jump to Out Point"
+        title="Lompat ke Titik Akhir"
       >
         <SkipForward class="w-3.5 h-3.5" />
       </button>
@@ -180,7 +180,7 @@
     <!-- Track 1: Subtitle Cues Track -->
     <div class="h-9 bg-[#191C20] rounded border border-[#292E34] p-1 flex items-center relative overflow-hidden">
       <span class="text-[9px] font-mono uppercase text-[#626871] px-2 shrink-0 border-r border-[#292E34] mr-2">
-        Subs
+        Teks
       </span>
       <div class="flex-1 h-full flex gap-1 relative">
         {#each clip.captions as seg (seg.id)}

@@ -56,7 +56,7 @@
         href="/candidates"
         class="text-[#9299A3] hover:text-[#E7E9EC] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B] rounded px-1"
       >
-        ← Candidates
+        ← Pilihan Klip
       </a>
       <span class="text-[#626871]">/</span>
       <span class="font-semibold text-[#E7E9EC] truncate max-w-[280px]">
@@ -65,7 +65,7 @@
       <span
         class="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded bg-[#191C20] border border-[#292E34] text-[#B6F36B]"
       >
-        {clip.duration}s
+        {clip.duration} detik
       </span>
     </div>
 
@@ -75,7 +75,7 @@
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '9:16' })}
-          title="9:16 Vertical"
+          title="Rasio 9:16 Vertikal"
           class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '9:16'
             ? 'bg-[#20242A] text-[#B6F36B]'
@@ -87,7 +87,7 @@
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '1:1' })}
-          title="1:1 Square"
+          title="Rasio 1:1 Kotak"
           class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '1:1'
             ? 'bg-[#20242A] text-[#B6F36B]'
@@ -99,7 +99,7 @@
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '16:9' })}
-          title="16:9 Landscape"
+          title="Rasio 16:9 Landscape"
           class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '16:9'
             ? 'bg-[#20242A] text-[#B6F36B]'
@@ -116,10 +116,10 @@
         class="h-7 px-2 rounded border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showSafeZones
           ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
           : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
-        title="Toggle TikTok / Reels UI overlays"
+        title="Tampilkan / Sembunyikan batasan safe area TikTok & Reels"
       >
         <ShieldAlert class="w-3 h-3" />
-        <span>Safe Zones</span>
+        <span>Zona Aman</span>
       </button>
 
       <button
@@ -128,7 +128,7 @@
         class="h-7 px-2 rounded border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showGrid
           ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
           : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
-        title="Rule of thirds alignment grid"
+        title="Garis bantu pembagian layar (Rule of Thirds)"
       >
         <Grid class="w-3 h-3" />
       </button>
@@ -142,7 +142,7 @@
         class="h-7 px-2.5 rounded bg-[#191C20] hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] border border-[#292E34] transition-colors flex items-center gap-1.5 cursor-pointer"
       >
         <Calendar class="w-3 h-3" />
-        <span>Schedule</span>
+        <span>Jadwalkan</span>
       </button>
 
       <button
@@ -151,7 +151,7 @@
         class="h-7 px-3 rounded bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] font-semibold transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50"
       >
         <Download class="w-3.5 h-3.5 stroke-[2.2]" />
-        <span>Export Clip</span>
+        <span>Ekspor Klip</span>
       </button>
     </div>
   </div>
@@ -181,7 +181,7 @@
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Type class="w-3.5 h-3.5" />
-          <span>Captions</span>
+          <span>Subtitle Teks</span>
         </button>
 
         <button
@@ -193,7 +193,7 @@
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Sliders class="w-3.5 h-3.5" />
-          <span>Framing</span>
+          <span>Framing & Zoom</span>
         </button>
 
         <button
@@ -205,7 +205,7 @@
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <AlignLeft class="w-3.5 h-3.5" />
-          <span>Transcript</span>
+          <span>Transkrip</span>
         </button>
       </div>
 
@@ -215,14 +215,14 @@
           <div class="space-y-4">
             <div>
               <span class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider block mb-2">
-                Caption Style Preset
+                Gaya Animasi Subtitle
               </span>
               <div class="grid grid-cols-2 gap-2">
                 {#each [
                   { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Pop' },
-                  { id: 'minimal' as CaptionStylePreset, label: 'Minimal Clean' },
-                  { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Active' },
-                  { id: 'subtle_box' as CaptionStylePreset, label: 'Solid Box' },
+                  { id: 'minimal' as CaptionStylePreset, label: 'Minimal Bersih' },
+                  { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow' },
+                  { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Kontras' },
                 ] as preset (preset.id)}
                   <button
                     type="button"
@@ -241,7 +241,7 @@
             <!-- Subtitle Accent Color -->
             <div class="p-3 bg-[#191C20] border border-[#292E34] rounded space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[#9299A3]">Keyword Highlight Accent</span>
+                <span class="text-[#9299A3]">Warna Sorotan Kata</span>
                 <span class="font-mono" style="color: {highlightColor};">{highlightColor}</span>
               </div>
               <div class="flex items-center gap-2">
@@ -254,7 +254,7 @@
                       : 'border-black/40 hover:scale-110'}"
                     style="background-color: {color};"
                     onclick={() => (highlightColor = color)}
-                    aria-label="Select highlight color {color}"
+                    aria-label="Pilih warna sorotan {color}"
                   ></button>
                 {/each}
               </div>
@@ -265,14 +265,14 @@
               <div class="flex items-center justify-between">
                 <span class="text-[#9299A3] flex items-center gap-1.5">
                   <Sparkles class="w-3.5 h-3.5 text-[#B6F36B]" />
-                  Dynamic Punch-in Zooms
+                  Efek Zoom Otomatis (Punch-In)
                 </span>
                 <span class="font-mono text-xs text-[#B6F36B]">
-                  {clip.bRollCuts?.length || 2} cuts active
+                  {clip.bRollCuts?.length || 2} titik aktif
                 </span>
               </div>
               <p class="text-[11px] text-[#626871] leading-relaxed">
-                Auto-zooms 1.25x on speaker turns and punchlines for higher visual retention.
+                Otomatis zoom 1.25x pada kalimat penting dan punchline untuk meningkatkan retensi penonton.
               </p>
             </div>
           </div>
@@ -280,10 +280,10 @@
           <div class="space-y-4">
             <div>
               <span class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider block mb-2">
-                Camera Pan Position (X-Axis)
+                Geser Posisi Kamera (Pan X)
               </span>
               <div class="flex items-center justify-between text-[#9299A3] mb-1">
-                <span>Center Offset</span>
+                <span>Offset Tengah</span>
                 <span class="font-mono tabular-nums text-[#B6F36B]">{clip.panOffset}%</span>
               </div>
               <input
@@ -302,10 +302,10 @@
 
             <div>
               <span class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider block mb-2">
-                Crop Zoom Scale
+                Tingkat Pembesaran (Zoom)
               </span>
               <div class="flex items-center justify-between text-[#9299A3] mb-1">
-                <span>Scale Factor</span>
+                <span>Skala Zoom</span>
                 <span class="font-mono tabular-nums text-[#B6F36B]">
                   {clip.zoomLevel.toFixed(2)}x
                 </span>
@@ -326,13 +326,13 @@
 
             <div>
               <span class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider block mb-2">
-                Tracking Algorithm
+                Mode Pelacakan
               </span>
               <div class="space-y-1.5">
                 {#each [
-                  { id: 'face_track' as FramingMode, label: 'Face Tracking Follow (Auto)' },
-                  { id: 'centered' as FramingMode, label: 'Fixed Geometric Center' },
-                  { id: 'manual_pan' as FramingMode, label: 'Manual Keyframe Lock' },
+                  { id: 'face_track' as FramingMode, label: 'Ikuti Wajah Otomatis (Auto Face-Track)' },
+                  { id: 'centered' as FramingMode, label: 'Tengah Statis' },
+                  { id: 'manual_pan' as FramingMode, label: 'Kunci Posisi Manual' },
                 ] as m (m.id)}
                   <button
                     type="button"
@@ -352,7 +352,7 @@
           <!-- Transcript Tab -->
           <div class="space-y-3">
             <div class="text-[11px] text-[#626871]">
-              Click any segment to seek playhead to that timestamp:
+              Klik bagian teks mana pun untuk melompat ke detik tersebut:
             </div>
             {#each clip.captions as seg (seg.id)}
               {@const isActiveSeg = currentTime >= seg.start && currentTime <= seg.end}
@@ -364,7 +364,7 @@
                   : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
               >
                 <div class="flex items-center justify-between text-[10px] font-mono mb-1 text-[#626871]">
-                  <span>{seg.speaker || 'Speaker'}</span>
+                  <span>{seg.speaker || 'Pembicara'}</span>
                   <span class="tabular-nums">
                     {formatTimecode(seg.start, false)} - {formatTimecode(seg.end, false)}
                   </span>

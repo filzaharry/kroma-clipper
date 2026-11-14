@@ -14,9 +14,11 @@
     Loader2,
     Link2,
     AlertCircle,
+    Play,
   } from 'lucide-svelte';
 
-  let youtubeUrl = $state('https://youtu.be/wsCBMCa_DBA?si=HnWp9ZtoFkhwOnjq');
+  // Input awal bersih tanpa data dummy sama sekali
+  let youtubeUrl = $state('');
   let isLoading = $state(false);
   let errorMessage = $state<string | null>(null);
 
@@ -40,17 +42,13 @@
       }
 
       workspace.addVideo(data.video);
+      youtubeUrl = '';
       errorMessage = null;
     } catch (err: any) {
       errorMessage = err?.message || 'Terjadi kesalahan saat memproses link YouTube';
     } finally {
       isLoading = false;
     }
-  }
-
-  function handleQuickDemo(url: string) {
-    youtubeUrl = url;
-    handleImportYoutube();
   }
 </script>
 
@@ -60,10 +58,10 @@
     <div>
       <h1 class="text-xl font-semibold text-[#E7E9EC] tracking-tight flex items-center gap-2.5">
         <SquarePlay class="w-6 h-6 text-[#EF4444]" />
-        <span>1. YouTube Video Ingest</span>
+        <span>1. Input Video YouTube</span>
       </h1>
       <p class="text-xs text-[#9299A3] mt-1">
-        Cukup masukkan link video atau podcast YouTube. Sistem otomatis mengekstrak thumbnail, audio waveform, dan transkrip untuk deteksi klip viral.
+        Cukup masukkan link video atau podcast YouTube. Sistem otomatis mengekstrak thumbnail, durasi, dan transkrip untuk analisis klip viral.
       </p>
     </div>
 
@@ -73,7 +71,7 @@
         onclick={() => goto('/rules')}
         class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded transition-colors flex items-center gap-2 self-start md:self-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shrink-0 cursor-pointer"
       >
-        <span>Lanjut ke Clipping Rules</span>
+        <span>Lanjut ke Aturan Klip</span>
         <ArrowRight class="w-3.5 h-3.5" />
       </button>
     {/if}
@@ -90,7 +88,7 @@
           <input
             type="url"
             bind:value={youtubeUrl}
-            placeholder="Paste YouTube Link (e.g. https://youtu.be/wsCBMCa_DBA...)"
+            placeholder="Tempel link YouTube (contoh: https://www.youtube.com/watch?v=... atau https://youtu.be/...)"
             required
             class="w-full h-11 pl-10 pr-4 bg-[#111315] border border-[#292E34] focus:border-[#B6F36B] rounded-lg text-sm text-[#E7E9EC] placeholder-[#626871] focus:outline-none transition-colors"
           />
@@ -105,23 +103,11 @@
         >
           {#if isLoading}
             <Loader2 class="w-4 h-4 animate-spin" />
-            <span>Memproses Video...</span>
+            <span>Mengambil Video...</span>
           {:else}
             <Sparkles class="w-4 h-4 fill-current" />
-            <span>Ekstrak Video YouTube</span>
+            <span>Ambil Video YouTube</span>
           {/if}
-        </button>
-      </div>
-
-      <!-- Quick sample suggestions -->
-      <div class="flex flex-wrap items-center gap-2 pt-1">
-        <span class="text-[11px] text-[#626871]">Contoh Cepat:</span>
-        <button
-          type="button"
-          onclick={() => handleQuickDemo('https://youtu.be/wsCBMCa_DBA?si=HnWp9ZtoFkhwOnjq')}
-          class="text-[11px] text-[#9299A3] hover:text-[#B6F36B] bg-[#111315] hover:bg-[#20242A] px-2.5 py-1 rounded border border-[#292E34] transition-colors cursor-pointer font-mono truncate max-w-xs"
-        >
-          wsCBMCa_DBA (Raditya Dika Podcast)
         </button>
       </div>
 
@@ -137,117 +123,146 @@
   <!-- Library of Ingested YouTube Videos -->
   <div class="space-y-3">
     <div class="flex items-center justify-between text-xs font-medium text-[#9299A3] px-1">
-      <span>Daftar Video Aktif ({workspace.videos.length})</span>
-      <span>Klik video untuk memilih master aktif</span>
+      <span>Daftar Video Yang Dimasukkan ({workspace.videos.length})</span>
+      {#if workspace.videos.length > 0}
+        <span>Klik video untuk memilih master aktif</span>
+      {/if}
     </div>
 
-    <div class="grid grid-cols-1 gap-3">
-      {#each workspace.videos as vid (vid.id)}
-        {@const isSelected = workspace.activeVideo?.id === vid.id}
-        <div
-          role="button"
-          tabindex="0"
-          onclick={() => workspace.selectVideo(vid)}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              workspace.selectVideo(vid);
-            }
-          }}
-          class="p-4 rounded-lg border transition-all text-left w-full cursor-pointer {isSelected
-            ? 'bg-[#20242A] border-[#B6F36B]/60 ring-1 ring-[#B6F36B]/40'
-            : 'bg-[#191C20] border-[#292E34] hover:border-[#383F47] hover:bg-[#1E2228]'}"
-        >
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div class="flex items-start gap-4">
-              <!-- Real YouTube Thumbnail or Icon -->
-              <div
-                class="w-24 h-16 rounded-md bg-[#111315] border border-[#292E34] overflow-hidden flex items-center justify-center shrink-0 relative group"
-              >
-                {#if vid.thumbnailUrl}
-                  <img
-                    src={vid.thumbnailUrl}
-                    alt={vid.title}
-                    class="w-full h-full object-cover"
-                  />
-                {:else}
-                  <SquarePlay class="w-8 h-8 text-[#EF4444]" />
-                {/if}
-                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <SquarePlay class="w-6 h-6 text-white" />
-                </div>
-              </div>
-
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-sm font-semibold text-[#E7E9EC] tracking-tight line-clamp-1">
-                    {vid.title}
-                  </span>
-                  {#if isSelected}
-                    <span
-                      class="text-[10px] text-[#B6F36B] font-mono px-1.5 py-0.5 rounded bg-[#111315] border border-[#B6F36B]/30 flex items-center gap-1 shrink-0"
-                    >
-                      <CheckCircle2 class="w-3 h-3" />
-                      ACTIVE
-                    </span>
-                  {/if}
-                </div>
-                <div class="flex flex-wrap items-center gap-3 text-xs text-[#9299A3] mt-1.5">
-                  <span class="font-mono text-[#626871]">{vid.fileName}</span>
-                  <span>·</span>
-                  <span class="flex items-center gap-1 font-mono tabular-nums">
-                    <Clock class="w-3.5 h-3.5 text-[#626871]" />
-                    {formatDuration(vid.durationSeconds)}
-                  </span>
-                  <span>·</span>
-                  <span class="flex items-center gap-1 font-mono tabular-nums">
-                    <MonitorPlay class="w-3.5 h-3.5 text-[#626871]" />
-                    {vid.resolution.width}x{vid.resolution.height} @ {vid.fps}fps
-                  </span>
-                  <span>·</span>
-                  <span class="flex items-center gap-1 font-mono tabular-nums">
-                    <AudioWaveform class="w-3.5 h-3.5 text-[#626871]" />
-                    {vid.audioChannels} ch ({vid.sampleRate / 1000}kHz)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3 self-end md:self-auto">
-              <button
-                type="button"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  workspace.selectVideo(vid);
-                  goto('/rules');
-                }}
-                class="h-8 px-3 text-xs font-medium text-[#E7E9EC] bg-[#111315] hover:bg-[#20242A] border border-[#292E34] hover:border-[#383F47] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B]"
-              >
-                <span>Set Rules</span>
-                <ArrowRight class="w-3 h-3 text-[#B6F36B]" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Waveform Micro-Display -->
-          <div class="mt-3 pt-3 border-t border-[#292E34]/50 flex items-center gap-3">
-            <span class="text-[10px] uppercase font-mono text-[#626871] tracking-wider shrink-0">
-              Audio Waveform
-            </span>
-            <div class="flex-1 h-5 flex items-end gap-[2px] overflow-hidden opacity-75">
-              {#each vid.waveformPoints.slice(0, 80) as pt, idx (idx)}
-                <div
-                  class="flex-1 bg-[#292E34] hover:bg-[#B6F36B] transition-colors rounded-t-[1px]"
-                  style="height: {Math.max(15, pt * 100)}%"
-                ></div>
-              {/each}
-            </div>
-            <span class="text-[10px] font-mono tabular-nums text-[#9299A3]">
-              {vid.transcripts.length} transcript cues
-            </span>
-          </div>
+    {#if workspace.videos.length === 0}
+      <!-- Empty State Bersih Tanpa Dummy List -->
+      <div class="rounded-xl border border-dashed border-[#292E34] p-12 text-center bg-[#14171A]">
+        <div class="w-14 h-14 rounded-full bg-[#191C20] border border-[#292E34] flex items-center justify-center mx-auto mb-4 text-[#EF4444]">
+          <SquarePlay class="w-7 h-7" />
         </div>
-      {/each}
-    </div>
+        <h3 class="text-sm font-semibold text-[#E7E9EC]">Belum Ada Video yang Dimasukkan</h3>
+        <p class="text-xs text-[#9299A3] mt-1.5 max-w-md mx-auto leading-relaxed">
+          Tempelkan tautan video YouTube di atas, lalu klik <strong>"Ambil Video YouTube"</strong>. Sistem akan langsung memproses metadata tanpa perlu login ataupun database.
+        </p>
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 gap-3">
+        {#each workspace.videos as vid (vid.id)}
+          {@const isSelected = workspace.activeVideo?.id === vid.id}
+          <div
+            role="button"
+            tabindex="0"
+            onclick={() => workspace.selectVideo(vid)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                workspace.selectVideo(vid);
+              }
+            }}
+            class="p-4 rounded-lg border transition-all text-left w-full cursor-pointer {isSelected
+              ? 'bg-[#20242A] border-[#B6F36B]/60 ring-1 ring-[#B6F36B]/40'
+              : 'bg-[#191C20] border-[#292E34] hover:border-[#383F47] hover:bg-[#1E2228]'}"
+          >
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex items-start gap-4">
+                <!-- Real YouTube Thumbnail -->
+                <div
+                  class="w-24 h-16 rounded-md bg-[#111315] border border-[#292E34] overflow-hidden flex items-center justify-center shrink-0 relative group"
+                >
+                  {#if vid.thumbnailUrl}
+                    <img
+                      src={vid.thumbnailUrl}
+                      alt={vid.title}
+                      class="w-full h-full object-cover"
+                    />
+                  {:else}
+                    <SquarePlay class="w-8 h-8 text-[#EF4444]" />
+                  {/if}
+                  <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <SquarePlay class="w-6 h-6 text-white" />
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-[#E7E9EC] tracking-tight line-clamp-1">
+                      {vid.title}
+                    </span>
+                    {#if isSelected}
+                      <span
+                        class="text-[10px] text-[#B6F36B] font-mono px-1.5 py-0.5 rounded bg-[#111315] border border-[#B6F36B]/30 flex items-center gap-1 shrink-0"
+                      >
+                        <CheckCircle2 class="w-3 h-3" />
+                        AKTIF
+                      </span>
+                    {/if}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3 text-xs text-[#9299A3] mt-1.5">
+                    <span class="font-mono text-[#626871]">{vid.fileName}</span>
+                    <span>·</span>
+                    <span class="flex items-center gap-1 font-mono tabular-nums">
+                      <Clock class="w-3.5 h-3.5 text-[#626871]" />
+                      {formatDuration(vid.durationSeconds)}
+                    </span>
+                    <span>·</span>
+                    <span class="flex items-center gap-1 font-mono tabular-nums">
+                      <MonitorPlay class="w-3.5 h-3.5 text-[#626871]" />
+                      {vid.resolution.width}x{vid.resolution.height} @ {vid.fps}fps
+                    </span>
+                    <span>·</span>
+                    <span class="flex items-center gap-1 font-mono tabular-nums">
+                      <AudioWaveform class="w-3.5 h-3.5 text-[#626871]" />
+                      {vid.audioChannels} ch ({vid.sampleRate / 1000}kHz)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 self-end md:self-auto">
+                <button
+                  type="button"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    workspace.selectVideo(vid);
+                    goto('/rules');
+                  }}
+                  class="h-8 px-3 text-xs font-medium text-[#E7E9EC] bg-[#111315] hover:bg-[#20242A] border border-[#292E34] hover:border-[#383F47] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B]"
+                >
+                  <span>Atur Aturan</span>
+                  <ArrowRight class="w-3 h-3 text-[#B6F36B]" />
+                </button>
+
+                <button
+                  type="button"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    workspace.selectVideo(vid);
+                    workspace.runAnalysis();
+                    goto('/analysis');
+                  }}
+                  class="h-8 px-3 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] rounded transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50"
+                >
+                  <Sparkles class="w-3.5 h-3.5 fill-current" />
+                  <span>⚡ Analisis AI</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Waveform Micro-Display -->
+            <div class="mt-3 pt-3 border-t border-[#292E34]/50 flex items-center gap-3">
+              <span class="text-[10px] uppercase font-mono text-[#626871] tracking-wider shrink-0">
+                Gelombang Suara
+              </span>
+              <div class="flex-1 h-5 flex items-end gap-[2px] overflow-hidden opacity-75">
+                {#each vid.waveformPoints.slice(0, 80) as pt, idx (idx)}
+                  <div
+                    class="flex-1 bg-[#292E34] hover:bg-[#B6F36B] transition-colors rounded-t-[1px]"
+                    style="height: {Math.max(15, pt * 100)}%"
+                  ></div>
+                {/each}
+              </div>
+              <span class="text-[10px] font-mono tabular-nums text-[#9299A3]">
+                {vid.transcripts.length} segmen transkrip
+              </span>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </div>
