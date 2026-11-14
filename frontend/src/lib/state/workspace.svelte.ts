@@ -6,7 +6,7 @@ import type {
   ScheduledPost,
 } from '#lib/types';
 import { INITIAL_CLIPPING_RULES } from '#lib/data/mockData';
-import { evaluateHighlightCandidates, formatTimecode } from '#lib/utils/clippingRules';
+import { evaluateHighlightCandidates, formatTimecode, sanitizeCaptionSegments } from '#lib/utils/clippingRules';
 
 export class WorkspaceStore {
   // Primary collections — Bersih tanpa dummy data awal
@@ -45,6 +45,9 @@ export class WorkspaceStore {
   }
 
   addVideo(video: VideoSource) {
+    if (video.transcripts) {
+      video.transcripts = sanitizeCaptionSegments(video.transcripts);
+    }
     this.videos = [video, ...this.videos];
     this.activeVideoId = video.id;
     // Otomatis siapkan kandidat klip awal agar editor & pilihan klip langsung siap digunakan
@@ -140,6 +143,9 @@ export class WorkspaceStore {
   }
 
   updateClip(updated: ClipCandidate) {
+    if (updated.captions) {
+      updated.captions = sanitizeCaptionSegments(updated.captions);
+    }
     this.candidates = this.candidates.map((c) => (c.id === updated.id ? updated : c));
     if (this.activeClipId === updated.id) {
       this.activeClipId = updated.id;

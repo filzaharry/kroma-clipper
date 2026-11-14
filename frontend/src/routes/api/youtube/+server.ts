@@ -76,52 +76,72 @@ async function fetchWordLevelAcousticTranscripts(videoId: string, authorName: st
   try {
     const raw = JSON.parse(fs.readFileSync(targetFile, 'utf-8'));
     const events = raw.events || [];
+
+    // 1. Filter hanya event ucapan asli (abaikan event kosong atau newline \n)
+    const speechEvents = events.filter((ev: any) => {
+      if (!ev.segs || ev.segs.length === 0) return false;
+      const txt = ev.segs.map((s: any) => s.utf8 || '').join('').trim();
+      return txt.length > 0;
+    });
+
     const segments: CaptionSegment[] = [];
 
-    for (let i = 0; i < events.length; i++) {
-      const ev = events[i];
-      const tStartMs = ev.tStartMs || 0;
-      const dDurMs = ev.dDurationMs || 0;
-      const segs = ev.segs || [];
-      if (!segs || segs.length === 0) continue;
+    for (let i = 0; i < speechEvents.length; i++) {
+      const ev = speechEvents[i];
+      const tStartSec = Math.round((ev.tStartMs || 0) / 10) / 100;
+
+      // Batas atas mutlak segmen ini: Waktu dimulainya ucapan berikutnya!
+      // Ini 100% mencegah tumpang tindih (overlap) antar kalimat rolling teleprompter.
+      const nextStartSec = i < speechEvents.length - 1
+        ? Math.round((speechEvents[i + 1].tStartMs || 0) / 10) / 100
+        : tStartSec + 3.0;
 
       const words: CaptionWord[] = [];
       const textPieces: string[] = [];
 
-      for (const s of segs) {
+      for (const s of ev.segs) {
         const rawText = s.utf8 || '';
         const cleanW = cleanTranscriptText(rawText);
         if (!cleanW) continue;
 
-        const offsetMs = s.tOffsetMs || 0;
-        const wStart = Math.round((tStartMs + offsetMs) / 10) / 100;
+        const offsetSec = Math.round((s.tOffsetMs || 0) / 10) / 100;
+        const wStart = Math.round((tStartSec + offsetSec) * 100) / 100;
         words.push({
           word: cleanW,
           start: wStart,
-          end: Math.round((wStart + 0.3) * 100) / 100,
+          end: Math.round((wStart + 0.25) * 100) / 100,
         });
         textPieces.push(cleanW);
       }
 
-      if (words.length > 0) {
-        // Refine batas akhir kata agar menyesuaikan ritme jeda bicara antar kata
-        for (let w = 0; w < words.length - 1; w++) {
-          if (words[w + 1].start > words[w].start) {
-            words[w].end = words[w + 1].start;
-          }
-        }
-        const segEnd = Math.round((tStartMs + dDurMs) / 10) / 100;
-        words[words.length - 1].end = Math.max(words[words.length - 1].start + 0.2, segEnd);
+      if (words.length === 0) continue;
 
-        segments.push({
-          id: `yt-${videoId}-acoustic-seg-${i}`,
-          start: words[0].start,
-          end: words[words.length - 1].end,
-          text: textPieces.join(' '),
-          speaker: authorName,
-          words: words,
-        });
+      // 2. Tentukan batas akhir (end) tiap kata presisi mengikuti awal kata berikutnya
+      for (let w = 0; w < words.length - 1; w++) {
+        if (words[w + 1].start > words[w].start) {
+          words[w].end = words[w + 1].start;
+        } else {
+          words[w].end = Math.round((words[w].start + 0.2) * 100) / 100;
+        }
       }
+
+      // Kata terakhir dalam segmen diakhiri sebelum ucapan berikutnya dimulai
+      const lastW = words[words.length - 1];
+      const segStart = words[0].start;
+      const segEnd = i < speechEvents.length - 1
+        ? nextStartSec
+        : Math.round((lastW.start + 1.2) * 100) / 100;
+
+      lastW.end = segEnd;
+
+      segments.push({
+        id: `yt-${videoId}-acoustic-seg-${i}`,
+        start: segStart,
+        end: segEnd,
+        text: textPieces.join(' '),
+        speaker: authorName,
+        words: words,
+      });
     }
 
     return segments;

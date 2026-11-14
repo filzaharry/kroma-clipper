@@ -51,6 +51,43 @@ export function calculateClipHeuristicScore(
 }
 
 /**
+ * Memastikan urutan segmen dan kata transkrip tidak saling tumpang tindih (zero-overlap).
+ * Menyesuaikan batas akhir segmen dan kata tepat saat ucapan berikutnya berbunyi (presisi 1:1).
+ */
+export function sanitizeCaptionSegments(segments: CaptionSegment[]): CaptionSegment[] {
+  if (!segments || segments.length === 0) return [];
+  const clean: CaptionSegment[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    if (!s.text || !s.text.trim()) continue;
+    clean.push({
+      ...s,
+      words: s.words ? s.words.map((w) => ({ ...w })) : [],
+    });
+  }
+
+  for (let i = 0; i < clean.length; i++) {
+    const nextStart = i < clean.length - 1 ? clean[i + 1].start : clean[i].end;
+    if (clean[i].end > nextStart) {
+      clean[i].end = nextStart;
+    }
+    const words = clean[i].words;
+    if (words && words.length > 0) {
+      for (let w = 0; w < words.length - 1; w++) {
+        if (words[w].end > words[w + 1].start) {
+          words[w].end = words[w + 1].start;
+        }
+      }
+      const lastW = words[words.length - 1];
+      lastW.end = Math.min(clean[i].end, Math.max(lastW.start + 0.2, clean[i].end));
+    }
+  }
+
+  return clean;
+}
+
+/**
  * Filter and generate highlight candidates from a source video based on user rules
  */
 export function evaluateHighlightCandidates(
@@ -58,7 +95,7 @@ export function evaluateHighlightCandidates(
   config: ClippingRuleConfig
 ): ClipCandidate[] {
   const candidates: ClipCandidate[] = [];
-  const segments = video.transcripts;
+  const segments = sanitizeCaptionSegments(video.transcripts);
 
   if (!segments || segments.length === 0) {
     return [];

@@ -15,15 +15,15 @@ export const POST: RequestHandler = async ({ request }) => {
     const rawId = videoId.replace(/^yt-/, '');
     const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
     const validYtId = cleanId.length === 11 ? cleanId : 'wsCBMCa_DBA';
-    const startSec = Math.max(0, Math.floor(Number(startTime)));
-    const endSec = Math.max(startSec + 2, Math.ceil(Number(endTime)));
+    const startSec = Math.max(0, Math.round(Number(startTime) * 10) / 10);
+    const endSec = Math.max(startSec + 2, Math.round(Number(endTime) * 10) / 10);
 
     const cacheDir = path.resolve(process.cwd(), 'static/cache');
     if (!fs.existsSync(cacheDir)) {
       fs.mkdirSync(cacheDir, { recursive: true });
     }
 
-    const filename = `preview_${validYtId}_${startSec}_${endSec}.mp4`;
+    const filename = `preview_${validYtId}_${startSec.toFixed(1)}_${endSec.toFixed(1)}.mp4`;
     const filePath = path.join(cacheDir, filename);
     const publicUrl = `/cache/${filename}`;
 
@@ -35,11 +35,11 @@ export const POST: RequestHandler = async ({ request }) => {
       }
     }
 
-    // 2. Unduh potongan klip cepat menggunakan yt-dlp secara lokal
+    // 2. Unduh potongan klip cepat menggunakan yt-dlp dengan batas waktu desimal presisi
     const youtubeUrl = `https://www.youtube.com/watch?v=${validYtId}`;
     const args = [
       '--download-sections',
-      `*${startSec}-${endSec}`,
+      `*${startSec.toFixed(2)}-${endSec.toFixed(2)}`,
       '-f',
       '18/best[height<=480]/best[ext=mp4]/best',
       '--force-keyframes-at-cuts',
