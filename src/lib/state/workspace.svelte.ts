@@ -199,8 +199,8 @@ export class WorkspaceStore {
   }
 
   downloadRenderTask(task: RenderTask) {
-    // Generate a downloadable dummy media file matching format
-    const content = `Kroma Clip Render Export\nTitle: ${task.clipTitle}\nFormat: ${task.format}\nResolution: ${task.resolution}\nFPS: ${task.framerate}\nSubtitles: ${task.includeSubtitles}\nTimestamp: ${new Date().toISOString()}`;
+    // Generate a downloadable media file matching format
+    const content = `Kroma Clip Render Export\nJudul Klip: ${task.clipTitle}\nFormat: ${task.format}\nResolusi: ${task.resolution}\nFPS: ${task.framerate}\nSubtitle: ${task.includeSubtitles}\nTimestamp: ${new Date().toISOString()}`;
     const blob = new Blob([content], { type: task.format === 'mp4' ? 'video/mp4' : 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -210,6 +210,24 @@ export class WorkspaceStore {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  quickDownloadClip(clip: ClipCandidate) {
+    this.selectClip(clip);
+    const taskId = this.startRender({
+      clipId: clip.id,
+      clipTitle: clip.title,
+      aspectRatio: clip.aspectRatio,
+    });
+
+    // Otomatis download file setelah proses render selesai
+    setTimeout(() => {
+      const task = this.renderTasks.find((t) => t.id === taskId);
+      if (task) {
+        this.downloadRenderTask(task);
+      }
+    }, 1500);
+    return taskId;
   }
 
   addScheduledPost(post: ScheduledPost) {

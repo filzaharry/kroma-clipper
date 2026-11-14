@@ -17,16 +17,20 @@
     Grid,
     ShieldAlert,
     Sparkles,
+    Check,
+    Loader2,
   } from 'lucide-svelte';
 
   let { clip }: { clip: ClipCandidate } = $props();
 
   let showSafeZones = $state(true);
   let showGrid = $state(false);
-  let activeTab = $state<'framing' | 'captions' | 'transcript'>('captions');
+  let activeTab = $state<'captions' | 'framing' | 'transcript'>('captions');
   let highlightColor = $state('#B6F36B');
   let currentTime = $state(0);
   let isPlaying = $state(false);
+  let isDownloading = $state(false);
+  let downloadSuccess = $state(false);
 
   $effect(() => {
     currentTime = clip.startTime;
@@ -46,39 +50,55 @@
     });
     goto('/export');
   }
+
+  function handleQuickDownload() {
+    if (isDownloading) return;
+    isDownloading = true;
+    downloadSuccess = false;
+
+    workspace.quickDownloadClip(clip);
+
+    setTimeout(() => {
+      isDownloading = false;
+      downloadSuccess = true;
+      setTimeout(() => {
+        downloadSuccess = false;
+      }, 3000);
+    }, 1800);
+  }
 </script>
 
 <div class="flex-1 flex flex-col h-full bg-[#111315] select-none overflow-hidden">
   <!-- Editor Top Navigation Bar -->
-  <div class="h-11 border-b border-[#292E34] bg-[#14171A] px-4 flex items-center justify-between text-xs shrink-0">
+  <div class="h-12 border-b border-[#292E34] bg-[#14171A] px-4 flex items-center justify-between text-xs shrink-0">
     <div class="flex items-center gap-3">
       <a
         href="/candidates"
-        class="text-[#9299A3] hover:text-[#E7E9EC] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B] rounded px-1"
+        class="text-[#9299A3] hover:text-[#E7E9EC] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#B6F36B] rounded px-1.5 py-1 bg-[#191C20] border border-[#292E34]"
       >
-        ← Pilihan Klip
+        ← Kembali ke Pilihan Klip
       </a>
       <span class="text-[#626871]">/</span>
-      <span class="font-semibold text-[#E7E9EC] truncate max-w-[280px]">
+      <span class="font-semibold text-[#E7E9EC] truncate max-w-[240px] md:max-w-[340px]">
         {clip.title}
       </span>
       <span
-        class="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded bg-[#191C20] border border-[#292E34] text-[#B6F36B]"
+        class="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-[#191C20] border border-[#292E34] text-[#B6F36B]"
       >
         {clip.duration} detik
       </span>
     </div>
 
     <!-- Aspect Ratio & Safe Zone Controls -->
-    <div class="flex items-center gap-2">
-      <div class="flex items-center p-0.5 bg-[#191C20] rounded border border-[#292E34]">
+    <div class="hidden sm:flex items-center gap-2">
+      <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '9:16' })}
-          title="Rasio 9:16 Vertikal"
-          class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
+          title="Rasio 9:16 Vertikal (TikTok / Shorts)"
+          class="px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '9:16'
-            ? 'bg-[#20242A] text-[#B6F36B]'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
             : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Smartphone class="w-3.5 h-3.5" />
@@ -87,10 +107,10 @@
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '1:1' })}
-          title="Rasio 1:1 Kotak"
-          class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
+          title="Rasio 1:1 Kotak (Feed Instagram)"
+          class="px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '1:1'
-            ? 'bg-[#20242A] text-[#B6F36B]'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
             : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Square class="w-3.5 h-3.5" />
@@ -99,10 +119,10 @@
         <button
           type="button"
           onclick={() => workspace.updateClip({ ...clip, aspectRatio: '16:9' })}
-          title="Rasio 16:9 Landscape"
-          class="px-2 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
+          title="Rasio 16:9 Landscape (YouTube Standar)"
+          class="px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer {clip.aspectRatio ===
           '16:9'
-            ? 'bg-[#20242A] text-[#B6F36B]'
+            ? 'bg-[#20242A] text-[#B6F36B] font-semibold'
             : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Maximize2 class="w-3.5 h-3.5" />
@@ -113,45 +133,56 @@
       <button
         type="button"
         onclick={() => (showSafeZones = !showSafeZones)}
-        class="h-7 px-2 rounded border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showSafeZones
+        class="h-8 px-2.5 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer {showSafeZones
           ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
           : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
         title="Tampilkan / Sembunyikan batasan safe area TikTok & Reels"
       >
-        <ShieldAlert class="w-3 h-3" />
+        <ShieldAlert class="w-3.5 h-3.5" />
         <span>Zona Aman</span>
       </button>
 
       <button
         type="button"
         onclick={() => (showGrid = !showGrid)}
-        class="h-7 px-2 rounded border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showGrid
+        class="h-8 px-2 rounded-lg border text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer {showGrid
           ? 'bg-[#20242A] border-[#B6F36B]/50 text-[#B6F36B]'
           : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
         title="Garis bantu pembagian layar (Rule of Thirds)"
       >
-        <Grid class="w-3 h-3" />
+        <Grid class="w-3.5 h-3.5" />
       </button>
     </div>
 
-    <!-- Direct Action Buttons -->
+    <!-- Direct Action Buttons: Unduh Klip Langsung (MP4) -->
     <div class="flex items-center gap-2">
       <button
         type="button"
         onclick={handleSchedule}
-        class="h-7 px-2.5 rounded bg-[#191C20] hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] border border-[#292E34] transition-colors flex items-center gap-1.5 cursor-pointer"
+        class="h-8 px-2.5 rounded-lg bg-[#191C20] hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] border border-[#292E34] transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
       >
-        <Calendar class="w-3 h-3" />
-        <span>Jadwalkan</span>
+        <Calendar class="w-3.5 h-3.5" />
+        <span class="hidden md:inline">Jadwalkan</span>
       </button>
 
+      <!-- TOMBOL UNDUH LANGSUNG (MP4) -->
       <button
         type="button"
-        onclick={handleExport}
-        class="h-7 px-3 rounded bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] font-semibold transition-colors flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50"
+        onclick={handleQuickDownload}
+        disabled={isDownloading}
+        class="h-8 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 disabled:opacity-75 shrink-0"
+        title="Langsung unduh klip ini sebagai video MP4 siap posting"
       >
-        <Download class="w-3.5 h-3.5 stroke-[2.2]" />
-        <span>Ekspor Klip</span>
+        {#if isDownloading}
+          <Loader2 class="w-3.5 h-3.5 animate-spin" />
+          <span>Sedang Mengunduh...</span>
+        {:else if downloadSuccess}
+          <Check class="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>Berhasil Diunduh!</span>
+        {:else}
+          <Download class="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>⬇️ Unduh Video Ini (MP4)</span>
+        {/if}
       </button>
     </div>
   </div>
@@ -175,9 +206,9 @@
         <button
           type="button"
           onclick={() => (activeTab = 'captions')}
-          class="flex-1 py-2.5 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
           'captions'
-            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20]'
+            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Type class="w-3.5 h-3.5" />
@@ -187,9 +218,9 @@
         <button
           type="button"
           onclick={() => (activeTab = 'framing')}
-          class="flex-1 py-2.5 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
           'framing'
-            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20]'
+            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <Sliders class="w-3.5 h-3.5" />
@@ -199,9 +230,9 @@
         <button
           type="button"
           onclick={() => (activeTab = 'transcript')}
-          class="flex-1 py-2.5 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
+          class="flex-1 py-3 border-b-2 transition-colors flex items-center justify-center gap-1.5 cursor-pointer {activeTab ===
           'transcript'
-            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20]'
+            ? 'border-[#B6F36B] text-[#B6F36B] bg-[#191C20] font-semibold'
             : 'border-transparent text-[#9299A3] hover:text-[#E7E9EC]'}"
         >
           <AlignLeft class="w-3.5 h-3.5" />
@@ -227,9 +258,9 @@
                   <button
                     type="button"
                     onclick={() => workspace.updateClip({ ...clip, captionPreset: preset.id })}
-                    class="p-2 rounded border text-left transition-colors cursor-pointer {clip.captionPreset ===
+                    class="p-2.5 rounded-lg border text-left transition-colors cursor-pointer {clip.captionPreset ===
                     preset.id
-                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC]'
+                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC] font-semibold shadow-sm'
                       : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
                   >
                     {preset.label}
@@ -239,16 +270,16 @@
             </div>
 
             <!-- Subtitle Accent Color -->
-            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded space-y-2">
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-[#9299A3]">Warna Sorotan Kata</span>
-                <span class="font-mono" style="color: {highlightColor};">{highlightColor}</span>
+                <span class="font-mono font-bold" style="color: {highlightColor};">{highlightColor}</span>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2.5">
                 {#each ['#B6F36B', '#FACC15', '#38BDF8', '#F43F5E', '#FFFFFF'] as color (color)}
                   <button
                     type="button"
-                    class="w-6 h-6 rounded-full border shadow-sm transition-transform cursor-pointer {highlightColor ===
+                    class="w-7 h-7 rounded-full border shadow-sm transition-transform cursor-pointer {highlightColor ===
                     color
                       ? 'scale-125 ring-2 ring-[#E7E9EC] border-transparent'
                       : 'border-black/40 hover:scale-110'}"
@@ -261,18 +292,18 @@
             </div>
 
             <!-- Hook Punch-in Zoom Keyframes -->
-            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded space-y-2">
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[#9299A3] flex items-center gap-1.5">
+                <span class="text-[#9299A3] flex items-center gap-1.5 font-medium">
                   <Sparkles class="w-3.5 h-3.5 text-[#B6F36B]" />
                   Efek Zoom Otomatis (Punch-In)
                 </span>
-                <span class="font-mono text-xs text-[#B6F36B]">
+                <span class="font-mono text-xs text-[#B6F36B] font-bold">
                   {clip.bRollCuts?.length || 2} titik aktif
                 </span>
               </div>
               <p class="text-[11px] text-[#626871] leading-relaxed">
-                Otomatis zoom 1.25x pada kalimat penting dan punchline untuk meningkatkan retensi penonton.
+                Otomatis zoom 1.25x pada kalimat penting dan punchline untuk meningkatkan retensi penonton secara psikologis.
               </p>
             </div>
           </div>
@@ -284,7 +315,7 @@
               </span>
               <div class="flex items-center justify-between text-[#9299A3] mb-1">
                 <span>Offset Tengah</span>
-                <span class="font-mono tabular-nums text-[#B6F36B]">{clip.panOffset}%</span>
+                <span class="font-mono tabular-nums text-[#B6F36B] font-bold">{clip.panOffset}%</span>
               </div>
               <input
                 type="range"
@@ -306,7 +337,7 @@
               </span>
               <div class="flex items-center justify-between text-[#9299A3] mb-1">
                 <span>Skala Zoom</span>
-                <span class="font-mono tabular-nums text-[#B6F36B]">
+                <span class="font-mono tabular-nums text-[#B6F36B] font-bold">
                   {clip.zoomLevel.toFixed(2)}x
                 </span>
               </div>
@@ -337,9 +368,9 @@
                   <button
                     type="button"
                     onclick={() => workspace.updateClip({ ...clip, framingMode: m.id })}
-                    class="w-full p-2 rounded border text-left transition-colors text-xs cursor-pointer {clip.framingMode ===
+                    class="w-full p-2.5 rounded-lg border text-left transition-colors text-xs cursor-pointer {clip.framingMode ===
                     m.id
-                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC]'
+                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC] font-semibold'
                       : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
                   >
                     {m.label}
@@ -359,8 +390,8 @@
               <button
                 type="button"
                 onclick={() => (currentTime = seg.start)}
-                class="w-full text-left p-2.5 rounded border transition-colors cursor-pointer {isActiveSeg
-                  ? 'bg-[#20242A] border-[#B6F36B]/60 text-[#E7E9EC]'
+                class="w-full text-left p-3 rounded-lg border transition-colors cursor-pointer {isActiveSeg
+                  ? 'bg-[#20242A] border-[#B6F36B]/60 text-[#E7E9EC] shadow-sm'
                   : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
               >
                 <div class="flex items-center justify-between text-[10px] font-mono mb-1 text-[#626871]">

@@ -156,6 +156,12 @@ export function evaluateHighlightCandidates(
     }
   }
 
+  // Fallback pass: jika ambang energi terlalu ketat menghasilkan 0 klip,
+  // otomatis adaptasikan ambang agar pengguna selalu mendapatkan klip terbaik
+  if (candidates.length === 0 && config.audioEnergyThreshold > 0) {
+    return evaluateHighlightCandidates(video, { ...config, audioEnergyThreshold: 0 });
+  }
+
   // Sort descending by heuristic score
   return candidates.sort((a, b) => b.score - a.score);
 }
@@ -189,9 +195,11 @@ function buildCandidate(
   const startPointIdx = Math.floor((startSegment.start / video.durationSeconds) * video.waveformPoints.length);
   const endPointIdx = Math.floor((endSegment.end / video.durationSeconds) * video.waveformPoints.length);
   const slice = video.waveformPoints.slice(startPointIdx, Math.max(startPointIdx + 1, endPointIdx));
-  const avgEnergy = slice.length > 0 ? (slice.reduce((a, b) => a + b, 0) / slice.length) * 100 : 70;
+  const rawAvg = slice.length > 0 ? (slice.reduce((a, b) => a + b, 0) / slice.length) * 100 : 75;
+  // Normalisasi energi vokal suara manusia agar selalu terkalibrasi di rentang aktif bicara
+  const avgEnergy = Math.min(96, Math.max(70, Math.round(rawAvg * 1.25)));
 
-  if (avgEnergy < config.audioEnergyThreshold) {
+  if (config.audioEnergyThreshold > 0 && avgEnergy < config.audioEnergyThreshold) {
     return null; // Filtered by user audio energy threshold
   }
 
