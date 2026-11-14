@@ -27,6 +27,49 @@ export class WorkspaceStore {
   private analysisTimer: ReturnType<typeof setInterval> | null = null;
   private renderTimers = new Map<string, ReturnType<typeof setInterval>>();
 
+  constructor() {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const saved = localStorage.getItem('kroma_workspace_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.videos) && parsed.videos.length > 0) {
+            this.videos = parsed.videos;
+            this.activeVideoId = parsed.activeVideoId || parsed.videos[0]?.id || null;
+          }
+          if (Array.isArray(parsed.candidates) && parsed.candidates.length > 0) {
+            this.candidates = parsed.candidates;
+            this.activeClipId = parsed.activeClipId || parsed.candidates[0]?.id || null;
+          }
+          if (parsed.rules) {
+            this.rules = { ...INITIAL_CLIPPING_RULES, ...parsed.rules };
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load workspace from localStorage:', e);
+      }
+    }
+  }
+
+  saveToStorage() {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        localStorage.setItem(
+          'kroma_workspace_v1',
+          JSON.stringify({
+            videos: this.videos,
+            activeVideoId: this.activeVideoId,
+            candidates: this.candidates,
+            activeClipId: this.activeClipId,
+            rules: this.rules,
+          })
+        );
+      } catch (e) {
+        console.warn('Failed to save workspace to localStorage:', e);
+      }
+    }
+  }
+
   // Derived selectors
   activeVideo = $derived<VideoSource | null>(
     this.videos.find((v) => v.id === this.activeVideoId) || this.videos[0] || null
@@ -42,6 +85,7 @@ export class WorkspaceStore {
 
   selectVideo(video: VideoSource) {
     this.activeVideoId = video.id;
+    this.saveToStorage();
   }
 
   addVideo(video: VideoSource) {
@@ -54,6 +98,7 @@ export class WorkspaceStore {
     const initialCandidates = evaluateHighlightCandidates(video, this.rules);
     this.candidates = initialCandidates;
     this.activeClipId = initialCandidates[0]?.id || null;
+    this.saveToStorage();
   }
 
   updateRules(updated: ClippingRuleConfig) {
@@ -68,6 +113,7 @@ export class WorkspaceStore {
       minDuration,
       maxDuration,
     };
+    this.saveToStorage();
   }
 
   runAnalysis(onComplete?: () => void) {
@@ -102,6 +148,7 @@ export class WorkspaceStore {
         if (newCandidates.length > 0) {
           this.candidates = newCandidates;
           this.activeClipId = newCandidates[0].id;
+          this.saveToStorage();
           this.analysisLogs.push(
             `[00:00:07] Berhasil menemukan ${newCandidates.length} klip kandidat terbaik berdurasi ${this.rules.minDuration}s - ${this.rules.maxDuration}s.`,
             `[00:00:08] Klip dengan retensi & hook tertinggi: "${newCandidates[0].title}" (Skor: ${newCandidates[0].score}/100).`,
@@ -140,6 +187,7 @@ export class WorkspaceStore {
 
   selectClip(clip: ClipCandidate) {
     this.activeClipId = clip.id;
+    this.saveToStorage();
   }
 
   updateClip(updated: ClipCandidate) {
@@ -150,6 +198,7 @@ export class WorkspaceStore {
     if (this.activeClipId === updated.id) {
       this.activeClipId = updated.id;
     }
+    this.saveToStorage();
   }
 
   approveClip(clipId: string) {

@@ -6,6 +6,7 @@ import { YoutubeTranscript } from 'youtube-transcript';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 /**
  * Membersihkan teks transkrip dari entitas HTML dan penanda suara [tertawa], [musik], dll.
@@ -30,7 +31,7 @@ function cleanTranscriptText(html: string): string {
  * Setiap jeda bicara pembicara atau ucapan cepat/lambat tercermin presisi 1:1 mengikuti suara asli.
  */
 async function fetchWordLevelAcousticTranscripts(videoId: string, authorName: string): Promise<CaptionSegment[]> {
-  const tmpDir = path.resolve(process.cwd(), 'static/cache/subs');
+  const tmpDir = path.join(os.tmpdir(), 'kroma_subs');
   if (!fs.existsSync(tmpDir)) {
     fs.mkdirSync(tmpDir, { recursive: true });
   }
