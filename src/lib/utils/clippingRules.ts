@@ -156,10 +156,51 @@ export function evaluateHighlightCandidates(
     }
   }
 
-  // Fallback pass: jika ambang energi terlalu ketat menghasilkan 0 klip,
+  // Fallback pass 1: jika ambang energi terlalu ketat menghasilkan 0 klip,
   // otomatis adaptasikan ambang agar pengguna selalu mendapatkan klip terbaik
   if (candidates.length === 0 && config.audioEnergyThreshold > 0) {
     return evaluateHighlightCandidates(video, { ...config, audioEnergyThreshold: 0 });
+  }
+
+  // Fallback pass 2: jika masih 0 klip, bentuk klip berurutan agar pengguna selalu mendapatkan hasil
+  if (candidates.length === 0 && segments.length > 0) {
+    let curStartSeg = segments[0];
+    let curCaptions: CaptionSegment[] = [curStartSeg];
+    let curWords = [...(curStartSeg.words || [])];
+    let curText = curStartSeg.text;
+
+    for (let k = 1; k < segments.length && candidates.length < config.maxCandidates; k++) {
+      const seg = segments[k];
+      const dur = seg.end - curStartSeg.start;
+      curCaptions.push(seg);
+      if (seg.words) curWords.push(...seg.words);
+      curText += ' ' + seg.text;
+
+      if (dur >= config.minDuration || dur >= 20) {
+        const candidate = buildCandidate(
+          video,
+          { ...config, audioEnergyThreshold: 0 },
+          curStartSeg,
+          seg,
+          curCaptions,
+          curText,
+          curWords,
+          dur,
+          hookKeywords,
+          0
+        );
+        if (candidate) {
+          candidates.push(candidate);
+        }
+        if (k + 1 < segments.length) {
+          curStartSeg = segments[k + 1];
+          curCaptions = [curStartSeg];
+          curWords = [...(curStartSeg.words || [])];
+          curText = curStartSeg.text;
+          k++;
+        }
+      }
+    }
   }
 
   // Sort descending by heuristic score

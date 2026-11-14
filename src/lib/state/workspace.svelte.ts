@@ -47,6 +47,10 @@ export class WorkspaceStore {
   addVideo(video: VideoSource) {
     this.videos = [video, ...this.videos];
     this.activeVideoId = video.id;
+    // Otomatis siapkan kandidat klip awal agar editor & pilihan klip langsung siap digunakan
+    const initialCandidates = evaluateHighlightCandidates(video, this.rules);
+    this.candidates = initialCandidates;
+    this.activeClipId = initialCandidates[0]?.id || null;
   }
 
   updateRules(updated: ClippingRuleConfig) {

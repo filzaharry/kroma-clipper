@@ -87,3 +87,46 @@ test('evaluateHighlightCandidates identifies clips matching duration bounds and 
   assert.ok(results[0].score > 50, 'Highlight should have a strong score');
 });
 
+test('evaluateHighlightCandidates fallback guarantees candidates even with strict thresholds', () => {
+  const strictVideo: VideoSource = {
+    id: 'vid-strict',
+    title: 'Strict Threshold Video',
+    fileName: 'strict.mp4',
+    fileSizeBytes: 1000000,
+    durationSeconds: 120,
+    resolution: { width: 1920, height: 1080 },
+    fps: 30,
+    audioChannels: 2,
+    sampleRate: 48000,
+    uploadDate: '2026-03-24',
+    thumbnailUrl: '',
+    status: 'ready',
+    waveformPoints: generateMockWaveform(50),
+    transcripts: [
+      { id: 's1', start: 0, end: 10, text: 'Bagian satu pembahasan kesehatan jantung.', speaker: 'Dokter' },
+      { id: 's2', start: 10, end: 22, text: 'Bagian dua tips pencegahan serangan mendadak.', speaker: 'Dokter' },
+      { id: 's3', start: 22, end: 35, text: 'Bagian tiga evaluasi pola makan sehari-hari.', speaker: 'Dokter' },
+      { id: 's4', start: 35, end: 50, text: 'Bagian empat kesimpulan dan rekomendasi dokter.', speaker: 'Dokter' },
+    ],
+  };
+
+  const strictConfig: ClippingRuleConfig = {
+    minDuration: 20,
+    maxDuration: 40,
+    targetAspectRatios: ['9:16'],
+    framingMode: 'face_track',
+    audioEnergyThreshold: 99, // Impossible audio threshold
+    hookSensitivity: 99,
+    speechPacingPenalty: true,
+    detectSpeakerSwitches: true,
+    captionPreset: 'hormozi',
+    maxCandidates: 4,
+  };
+
+  // Harusnya tetap menghasilkan kandidat melalui sistem fallback
+  const candidates = evaluateHighlightCandidates(strictVideo, strictConfig);
+  assert.ok(candidates.length > 0, 'Harus selalu ada kandidat yang dihasilkan meski ambang sangat ketat');
+  assert.ok(candidates[0].captions.length > 0, 'Kandidat harus memiliki daftar caption yang valid');
+});
+
+

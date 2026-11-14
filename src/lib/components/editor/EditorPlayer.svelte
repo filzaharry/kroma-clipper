@@ -48,7 +48,9 @@
 
   // Extract pure YouTube video ID
   const youtubeVideoId = $derived(
-    workspace.activeVideo?.id?.replace(/^yt-/, '') || 'wsCBMCa_DBA'
+    clip.sourceVideoId?.replace(/^yt-/, '') ||
+      workspace.activeVideo?.id?.replace(/^yt-/, '') ||
+      'wsCBMCa_DBA'
   );
 
   // Waktu efektif subtitle setelah ditambahkan offset kalibrasi
