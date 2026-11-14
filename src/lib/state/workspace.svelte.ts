@@ -209,6 +209,8 @@ export class WorkspaceStore {
           endTime: clip?.endTime || 30,
           clipTitle: clip?.title || newTask.clipTitle,
           aspectRatio: newTask.aspectRatio,
+          framingLayout: config.framingLayout || clip?.framingLayout || this.rules.framingLayout || 'crop',
+          backgroundStyle: config.backgroundStyle || clip?.backgroundStyle || this.rules.backgroundStyle || 'dark_blur',
           captionPreset: clip?.captionPreset || this.rules.captionPreset,
           captionPosition: clip?.captionPosition || this.rules.captionPosition || 'bottom',
           captionMaxLines: clip?.captionMaxLines || this.rules.captionMaxLines || 2,

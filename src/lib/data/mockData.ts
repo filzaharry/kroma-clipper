@@ -14,6 +14,8 @@ export const INITIAL_CLIPPING_RULES: ClippingRuleConfig = {
   captionHighlightColor: '#B6F36B',
   captionPosition: 'bottom',
   captionMaxLines: 2,
+  framingLayout: 'crop',
+  backgroundStyle: 'dark_blur',
   maxCandidates: 8,
 };
 

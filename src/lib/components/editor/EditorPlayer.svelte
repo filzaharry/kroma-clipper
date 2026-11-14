@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { ClipCandidate } from '#lib/types';
+  import type { ClipCandidate, FramingLayout, BackgroundStyle } from '#lib/types';
   import { workspace } from '#lib/state/workspace.svelte';
   import { formatTimecode } from '#lib/utils/clippingRules';
   import { onDestroy, onMount } from 'svelte';
@@ -12,6 +12,7 @@
     Volume2,
     VolumeX,
     Sparkles,
+    ShieldCheck,
   } from 'lucide-svelte';
 
   let {
@@ -30,8 +31,12 @@
     isPlaying?: boolean;
   } = $props();
 
-  // Mode framing: 'vertical' (Crop 9:16 Vertikal) vs 'landscape' (16:9 Layar Penuh)
-  let viewLayout = $state<'vertical' | 'landscape'>('vertical');
+  // Mode Framing: 'crop' (Crop 9:16 Vertikal) vs 'fit_blur' (Format Asli 16:9 Latar Gelap Blur - Gambar 2)
+  const isFitBlur = $derived((clip.framingLayout || 'crop') === 'fit_blur');
+  const activeBackgroundStyle = $derived(clip.backgroundStyle || 'dark_blur');
+
+  // Toggle panduan visual batas Safe Zone Reels 9:16 (Gambar 3)
+  let showSafeZoneOverlay = $state(false);
 
   // Suara & Volume
   let isMuted = $state(false);
@@ -73,12 +78,17 @@
     return clip.captions[clip.captions.length - 1];
   });
 
-  // Posisi vertikal caption: atas, tengah, atau bawah (default)
+  // Posisi vertikal caption strictly mematuhi batas Safe Zone Reels 9:16 Gambar 3:
+  // - Top: di bawah batas 220px (top: 13%)
+  // - Bottom: di atas batas 450px (bottom: 25%) bebas dari tombol interaksi & teks caption akun
+  // - Middle: di bawah video 16:9 (top: 68%) pada mode fit_blur agar tidak menutupi wajah pembicara
   const captionPosClass = $derived.by(() => {
     const pos = clip.captionPosition || 'bottom';
-    if (pos === 'top') return 'top-8 inset-x-3';
-    if (pos === 'middle') return 'top-1/2 -translate-y-1/2 inset-x-3';
-    return 'bottom-10 inset-x-3';
+    if (pos === 'top') return 'top-[13%] inset-x-4';
+    if (pos === 'middle') {
+      return isFitBlur ? 'top-[68%] -translate-y-1/2 inset-x-4' : 'top-1/2 -translate-y-1/2 inset-x-4';
+    }
+    return 'bottom-[25%] inset-x-4';
   });
 
   // Jendela kata dinamis sesuai batasan baris (1, 2, atau 3 baris)
@@ -115,6 +125,20 @@
     const originParam = originHost ? `&origin=${encodeURIComponent(originHost)}&widget_referrer=${encodeURIComponent(originHost)}` : '';
     return `https://www.youtube.com/embed/${youtubeVideoId}?start=${Math.floor(clip.startTime)}&end=${Math.ceil(clip.endTime)}&autoplay=1&mute=${isMuted ? 1 : 0}&controls=1&loop=1&playlist=${youtubeVideoId}&playsinline=1&enablejsapi=1${originParam}&rel=0`;
   });
+
+  function setFramingLayout(layout: FramingLayout) {
+    workspace.updateClip({
+      ...clip,
+      framingLayout: layout,
+    });
+  }
+
+  function setBackgroundStyle(style: BackgroundStyle) {
+    workspace.updateClip({
+      ...clip,
+      backgroundStyle: style,
+    });
+  }
 
   function sendIframeCommand(func: string, args: any = '') {
     if (iframeRef && iframeRef.contentWindow) {
@@ -314,14 +338,14 @@
 </script>
 
 <div class="flex-1 bg-[#0D0F11] flex flex-col items-center justify-between p-4 relative overflow-hidden select-none">
-  <!-- Top Bar: Layout Switcher, Audio Controls & Subtitle Calibration Tool -->
+  <!-- Top Bar: Layout Switcher (Crop vs Fit Blur Gambar 2), Background Selector, Safe Zone Toggle & Audio Controls -->
   <div class="flex flex-wrap items-center justify-center gap-2 mb-2 z-20">
-    <!-- Layout Switcher -->
+    <!-- Layout Switcher: Tetap dalam Frame Portrait 9:16 -->
     <div class="flex items-center p-0.5 bg-[#191C20] rounded-lg border border-[#292E34]">
       <button
         type="button"
-        onclick={() => (viewLayout = 'vertical')}
-        class="h-7 px-3 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer {viewLayout === 'vertical'
+        onclick={() => setFramingLayout('crop')}
+        class="h-7 px-3 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer {!isFitBlur
           ? 'bg-[#20242A] text-[#B6F36B] shadow-sm'
           : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
       >
@@ -331,15 +355,46 @@
 
       <button
         type="button"
-        onclick={() => (viewLayout = 'landscape')}
-        class="h-7 px-3 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer {viewLayout === 'landscape'
+        onclick={() => setFramingLayout('fit_blur')}
+        class="h-7 px-3 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer {isFitBlur
           ? 'bg-[#20242A] text-[#B6F36B] shadow-sm'
           : 'text-[#9299A3] hover:text-[#E7E9EC]'}"
+        title="Format asli 16:9 di tengah dengan latar belakang gelap & blur dalam frame portrait (Sesuai Gambar 2)"
       >
         <Maximize2 class="w-3.5 h-3.5" />
-        <span>🎬 Format Asli 16:9</span>
+        <span>🎬 Format Asli 16:9 (Gambar 2)</span>
       </button>
     </div>
+
+    <!-- Pilihan Latar Belakang (Muncul saat Format Asli Fit Blur Aktif) -->
+    {#if isFitBlur}
+      <div class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#191C20] border border-[#292E34] text-xs">
+        <span class="text-[#9299A3] font-medium hidden sm:inline">Latar:</span>
+        <select
+          value={activeBackgroundStyle}
+          onchange={(e) => setBackgroundStyle((e.target as HTMLSelectElement).value as BackgroundStyle)}
+          class="bg-[#20242A] text-[#E7E9EC] text-xs font-semibold rounded px-2 py-1 border border-[#292E34] focus:outline-none focus:border-[#B6F36B] cursor-pointer"
+        >
+          <option value="dark_blur">🌌 Blur Gelap (Gambar 2)</option>
+          <option value="extra_dark_blur">🌑 Blur Ekstra Gelap</option>
+          <option value="pure_black">⬛ Hitam Polos</option>
+          <option value="dark_gradient">🎨 Gradien Gelap</option>
+        </select>
+      </div>
+    {/if}
+
+    <!-- Toggle Panduan Standar Safe Zone Reels 9:16 (Gambar 3) -->
+    <button
+      type="button"
+      onclick={() => (showSafeZoneOverlay = !showSafeZoneOverlay)}
+      class="h-7 px-2.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer {showSafeZoneOverlay
+        ? 'bg-[#F06A42]/20 border-[#F06A42] text-[#FFA07A] ring-1 ring-[#F06A42]/40 shadow-sm'
+        : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+      title="Tampilkan / sembunyikan garis panduan Safe Zone 9:16 sesuai standar Gambar 3"
+    >
+      <ShieldCheck class="w-3.5 h-3.5 text-[#FFA07A]" />
+      <span>🛡️ Safe Zone (Gambar 3)</span>
+    </button>
 
     <!-- Kalibrasi Sinkronisasi Subtitle Manual Presisi -->
     <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#191C20] border border-[#292E34] text-xs">
@@ -435,16 +490,14 @@
 
   <!-- Stage Canvas Wrapper -->
   <div class="flex-1 flex items-center justify-center w-full min-h-0 relative">
-    <!-- PONSLE CONTAINER DENGAN VIDEO BERGERAK AKTIF -->
+    <!-- PONSLE CONTAINER: SELALU DALAM FRAME PORTRAIT 9:16 (SESUAI GAMBAR 2) -->
     <div
-      class="relative rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-2 border-[#292E34] bg-black transition-all flex items-center justify-center {viewLayout ===
-      'vertical'
-        ? clip.aspectRatio === '9:16'
-          ? 'h-[470px] w-[264px]'
-          : clip.aspectRatio === '1:1'
-            ? 'h-[420px] w-[420px]'
-            : 'h-[320px] w-[568px]'
-        : 'h-[350px] w-[622px]'}"
+      class="relative rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-2 border-[#292E34] bg-black transition-all flex items-center justify-center {clip.aspectRatio ===
+      '9:16'
+        ? 'h-[490px] w-[276px]'
+        : clip.aspectRatio === '1:1'
+          ? 'h-[420px] w-[420px]'
+          : 'h-[320px] w-[568px]'}"
     >
       <!-- BANNER BANTUAN AKTIFKAN SUARA JIKA BROWSER MEMBLOKIR AUTOPLAY AUDIO -->
       {#if isMuted}
@@ -458,42 +511,67 @@
         </button>
       {/if}
 
-      <!-- LAYER 1: VIDEO YOUTUBE BERGERAK ASLI DI DALAM CROP CONTAINER -->
+      <!-- LAYER 1: VIDEO BERGERAK ASLI + LATAR BELAKANG (GAMBAR 2 FIT BLUR ATAU 9:16 CROP) -->
       <div class="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
-        <iframe
-          bind:this={iframeRef}
-          src={embedUrl}
-          onload={handleIframeLoad}
-          title="Video Klip: {clip.title}"
-          class="absolute {viewLayout === 'landscape' ? 'pointer-events-auto' : 'pointer-events-none'} transition-transform duration-100"
-          style="
-            height: 100%;
-            width: {viewLayout === 'vertical' && clip.aspectRatio === '9:16' ? '325%' : viewLayout === 'vertical' && clip.aspectRatio === '1:1' ? '180%' : '100%'};
-            min-width: {viewLayout === 'vertical' && clip.aspectRatio === '9:16' ? '325%' : viewLayout === 'vertical' && clip.aspectRatio === '1:1' ? '180%' : '100%'};
-            max-width: none;
-            left: calc(50% + {clip.panOffset}%);
-            top: 50%;
-            transform: translate(-50%, -50%) scale({clip.zoomLevel});
-          "
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        ></iframe>
-
-        <!-- Fallback Poster jika iframe lambat termuat -->
-        {#if workspace.activeVideo?.thumbnailUrl}
-          <img
-            src={workspace.activeVideo.thumbnailUrl}
-            alt="Preview Thumbnail"
-            class="absolute inset-0 w-full h-full object-cover filter brightness-90 -z-10"
-          />
+        <!-- Latar Belakang Blur & Gelap (Aktif pada mode Fit Blur Gambar 2) -->
+        {#if isFitBlur}
+          <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            {#if activeBackgroundStyle === 'pure_black'}
+              <div class="absolute inset-0 bg-black"></div>
+            {:else if activeBackgroundStyle === 'dark_gradient'}
+              <div class="absolute inset-0 bg-gradient-to-b from-[#181C22] via-[#0B0D0F] to-[#14171A]"></div>
+            {:else}
+              {#if workspace.activeVideo?.thumbnailUrl}
+                <img
+                  src={workspace.activeVideo.thumbnailUrl}
+                  alt="Latar Belakang Blur"
+                  class="absolute inset-0 w-full h-full object-cover scale-150 filter blur-xl {activeBackgroundStyle === 'extra_dark_blur'
+                    ? 'brightness-20 contrast-125'
+                    : 'brightness-40 contrast-110'} transition-all"
+                />
+              {/if}
+              <div class="absolute inset-0 {activeBackgroundStyle === 'extra_dark_blur' ? 'bg-black/80' : 'bg-black/60'} backdrop-blur-md"></div>
+            {/if}
+          </div>
         {/if}
 
-        <!-- Gradient Ambient Vignette agar teks subtitle selalu kontras & terbaca -->
-        <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/40 pointer-events-none z-10"></div>
+        <!-- Wadah Iframe Video YouTube Tunggal (Smooth, Tanpa Re-Mount Saat Ganti Mode) -->
+        <div
+          class="relative overflow-hidden transition-all duration-300 flex items-center justify-center {isFitBlur
+            ? 'w-full aspect-video z-15 shadow-[0_10px_35px_rgba(0,0,0,0.9)] border-y border-white/10 bg-black'
+            : 'w-full h-full z-10'}"
+        >
+          <iframe
+            bind:this={iframeRef}
+            src={embedUrl}
+            onload={handleIframeLoad}
+            title="Video Klip: {clip.title}"
+            class="absolute pointer-events-none transition-all duration-200"
+            style={isFitBlur
+              ? 'width: 100%; height: 100%; min-width: 100%; max-width: 100%; left: 50%; top: 50%; transform: translate(-50%, -50%);'
+              : `height: 100%; width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; min-width: ${clip.aspectRatio === '9:16' ? '325%' : clip.aspectRatio === '1:1' ? '180%' : '100%'}; max-width: none; left: calc(50% + ${clip.panOffset}%); top: 50%; transform: translate(-50%, -50%) scale(${clip.zoomLevel});`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          ></iframe>
+
+          <!-- Fallback Poster jika iframe lambat termuat -->
+          {#if workspace.activeVideo?.thumbnailUrl}
+            <img
+              src={workspace.activeVideo.thumbnailUrl}
+              alt="Preview Thumbnail"
+              class="absolute inset-0 w-full h-full object-cover filter brightness-90 -z-10"
+            />
+          {/if}
+        </div>
+
+        <!-- Gradient Ambient Vignette (Mode Crop) -->
+        {#if !isFitBlur}
+          <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/40 pointer-events-none z-10"></div>
+        {/if}
       </div>
 
       <!-- LAYER 2: GRID (RULE OF THIRDS) JIKA DIAKTIFKAN USER -->
       {#if showGrid}
-        <div class="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-[#B6F36B]/20 z-15">
+        <div class="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 border border-[#B6F36B]/20 z-20">
           <div class="border-r border-b border-[#B6F36B]/20"></div>
           <div class="border-r border-b border-[#B6F36B]/20"></div>
           <div class="border-b border-[#B6F36B]/20"></div>
@@ -506,7 +584,64 @@
         </div>
       {/if}
 
-      <!-- LAYER 3: 10 PILIHAN GAYA SUBTITLE DINAMIS (KINETIC CAPTIONS) -->
+      <!-- LAYER 3: OVERLAY PANDUAN STANDAR SAFE ZONE 9:16 (SESUAI GAMBAR 3) -->
+      {#if showSafeZoneOverlay}
+        <div class="absolute inset-0 pointer-events-none z-35 flex flex-col justify-between overflow-hidden">
+          <!-- Batas Atas 220px (11.46%) -->
+          <div class="h-[11.46%] w-full bg-[#E57A58]/30 border-b-2 border-[#E57A58] flex items-center justify-between px-2 text-[9px] font-mono font-bold text-white shadow-sm">
+            <span class="flex items-center gap-1 text-[#FFA07A]">
+              <span>⬆️ 220 px</span>
+              <span class="text-[8px] font-normal text-white/80 hidden sm:inline">(Header & Search)</span>
+            </span>
+            <span class="text-[8px] px-1 py-0.2 rounded bg-black/70 text-[#FFA07A]">Unsafe</span>
+          </div>
+
+          <!-- Safe Zone Tengah (Gambar 3: Area Aman 1080x1920) -->
+          <div class="flex-1 w-full relative flex flex-col items-center justify-between px-[3.24%] py-1.5">
+            <div class="w-full flex-1 border-2 border-dashed border-[#F06A42]/90 bg-[#F06A42]/15 rounded-lg flex flex-col items-center justify-center p-2 relative shadow-inner">
+              <div class="px-2.5 py-1 rounded bg-[#F06A42] text-white font-black text-[11px] tracking-wider uppercase shadow-md text-center">
+                SAFE ZONE
+              </div>
+              <div class="text-[8px] font-mono text-white/95 mt-0.5 font-bold text-center">
+                1080 x 1920 px (Gambar 3)
+              </div>
+              <div class="text-[7.5px] text-white/80 text-center">
+                Area aman bebas halangan
+              </div>
+
+              <!-- Ikon Halangan Sisi Kanan (100px) Gambar 3 -->
+              <div class="absolute bottom-2 right-1 w-[24px] flex flex-col items-center gap-1.5 py-1 px-0.5 bg-black/50 rounded border border-[#E57A58]/70">
+                <div class="w-3.5 h-3.5 rounded-full bg-white/50 border border-white flex items-center justify-center text-[7px] text-white font-bold">♥</div>
+                <div class="w-3.5 h-3.5 rounded-full bg-white/50 border border-white flex items-center justify-center text-[7px] text-white font-bold">💬</div>
+                <div class="w-3.5 h-3.5 rounded-full bg-white/50 border border-white flex items-center justify-center text-[7px] text-white font-bold">↗</div>
+                <span class="text-[6.5px] text-[#FFA07A] font-mono">100px</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Batas Bawah 450px (23.44%) -->
+          <div class="h-[23.44%] w-full bg-[#E57A58]/30 border-t-2 border-[#E57A58] p-2 flex flex-col justify-between text-[9px] font-mono font-bold text-white shadow-sm">
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1 text-[#FFA07A]">
+                <span>⬇️ 450 px</span>
+                <span class="text-[8px] font-normal text-white/80 hidden sm:inline">(Navigasi, Caption & Audio)</span>
+              </span>
+              <span class="text-[8px] px-1 py-0.2 rounded bg-black/70 text-[#FFA07A]">Unsafe</span>
+            </div>
+            <!-- Mock garis navigasi sesuai Gambar 3 -->
+            <div class="space-y-1 opacity-70">
+              <div class="flex items-center gap-1">
+                <div class="w-3 h-3 rounded-full bg-white/60"></div>
+                <div class="h-1 w-16 bg-white/60 rounded"></div>
+              </div>
+              <div class="h-1 w-28 bg-white/40 rounded"></div>
+              <div class="h-1 w-20 bg-white/30 rounded"></div>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- LAYER 4: 10 PILIHAN GAYA SUBTITLE DINAMIS (KINETIC CAPTIONS DI DALAM SAFE ZONE) -->
       <div class="absolute {captionPosClass} pointer-events-none text-center z-25 transition-all duration-200">
         {#if clip.captionPreset === 'hormozi'}
           <!-- 1. HORMOZI POP: Extra Bold, Uppercase, Scale & Pop per kata -->
@@ -699,27 +834,25 @@
         {/if}
       </div>
 
-      <!-- LAYER 6: INTERAKSI KLIK PLAY / PAUSE PADA LAYAR -->
-      {#if viewLayout === 'vertical'}
-        <button
-          type="button"
-          onclick={() => {
-            if (isMuted) {
-              enableSound();
-            } else {
-              togglePlay();
-            }
-          }}
-          class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors z-30 cursor-pointer group"
-          aria-label={isPlaying ? 'Jeda Video' : 'Putar Video'}
-        >
-          {#if !isPlaying}
-            <div class="w-14 h-14 rounded-full bg-[#B6F36B] text-[#111315] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
-              <Play class="w-7 h-7 fill-current ml-0.5" />
-            </div>
-          {/if}
-        </button>
-      {/if}
+      <!-- LAYER 5: INTERAKSI KLIK PLAY / PAUSE PADA LAYAR -->
+      <button
+        type="button"
+        onclick={() => {
+          if (isMuted) {
+            enableSound();
+          } else {
+            togglePlay();
+          }
+        }}
+        class="absolute inset-0 w-full h-full flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors z-30 cursor-pointer group"
+        aria-label={isPlaying ? 'Jeda Video' : 'Putar Video'}
+      >
+        {#if !isPlaying}
+          <div class="w-14 h-14 rounded-full bg-[#B6F36B] text-[#111315] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110">
+            <Play class="w-7 h-7 fill-current ml-0.5" />
+          </div>
+        {/if}
+      </button>
     </div>
   </div>
 

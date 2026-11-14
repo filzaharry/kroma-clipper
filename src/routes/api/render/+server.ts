@@ -14,6 +14,8 @@ export const POST: RequestHandler = async ({ request }) => {
       endTime = 30,
       clipTitle = 'Highlight Clip',
       aspectRatio = '9:16',
+      framingLayout = 'crop',
+      backgroundStyle = 'dark_blur',
       captionPreset = 'hormozi',
       captionPosition = 'bottom',
       captionMaxLines = 2,
@@ -59,6 +61,10 @@ export const POST: RequestHandler = async ({ request }) => {
       outputPath,
       '--aspect',
       aspectRatio,
+      '--framing-layout',
+      framingLayout,
+      '--background-style',
+      backgroundStyle,
       '--preset',
       captionPreset,
       '--position',
@@ -116,3 +122,4 @@ export const POST: RequestHandler = async ({ request }) => {
     );
   }
 };
+

@@ -8,6 +8,8 @@
     CaptionPosition,
     CaptionMaxLines,
     FramingMode,
+    FramingLayout,
+    BackgroundStyle,
   } from '#lib/types';
   import EditorPlayer from './EditorPlayer.svelte';
   import EditorTimeline from './EditorTimeline.svelte';
@@ -24,6 +26,7 @@
     Sparkles,
     Check,
     Loader2,
+    ShieldCheck,
   } from 'lucide-svelte';
 
   let { clip }: { clip: ClipCandidate } = $props();
@@ -348,19 +351,22 @@
               </div>
             </div>
 
-            <!-- Posisi Vertikal Caption (Atas, Tengah, Bawah) -->
+            <!-- Posisi Vertikal Caption (Safe Zone Gambar 3) -->
             <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[#9299A3] font-medium">Posisi Teks Caption</span>
+                <span class="text-[#9299A3] font-medium flex items-center gap-1.5">
+                  <ShieldCheck class="w-3.5 h-3.5 text-[#FFA07A]" />
+                  <span>Posisi Teks (Safe Zone Gambar 3)</span>
+                </span>
                 <span class="font-mono text-[10px] text-[#B6F36B] uppercase font-bold">
-                  {clip.captionPosition === 'top' ? 'Atas' : clip.captionPosition === 'middle' ? 'Tengah' : 'Bawah'}
+                  {clip.captionPosition === 'top' ? 'Atas (>220px)' : clip.captionPosition === 'middle' ? 'Tengah' : 'Bawah (>450px)'}
                 </span>
               </div>
               <div class="grid grid-cols-3 gap-1.5">
                 {#each [
-                  { id: 'top' as CaptionPosition, label: '⬆️ Atas', desc: 'Atas Video' },
-                  { id: 'middle' as CaptionPosition, label: '⏺️ Tengah', desc: 'Tengah Layar' },
-                  { id: 'bottom' as CaptionPosition, label: '⬇️ Bawah', desc: 'Bawah (Default)' },
+                  { id: 'top' as CaptionPosition, label: '⬆️ Atas', desc: 'Bawah 220px' },
+                  { id: 'middle' as CaptionPosition, label: '⏺️ Tengah', desc: 'Tengah / Bawah Video' },
+                  { id: 'bottom' as CaptionPosition, label: '⬇️ Bawah', desc: 'Atas 450px (Aman)' },
                 ] as pos (pos.id)}
                   <button
                     type="button"
@@ -422,6 +428,69 @@
           </div>
         {:else if activeTab === 'framing'}
           <div class="space-y-4">
+            <!-- Mode Layout Video 9:16: Crop Vertikal vs Format Asli (Gambar 2) -->
+            <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[#E7E9EC] font-semibold text-xs">Mode Layout Video 9:16</span>
+                <span class="font-mono text-[10px] text-[#B6F36B] font-bold">
+                  {clip.framingLayout === 'fit_blur' ? 'Format Asli (Gambar 2)' : 'Crop 9:16 Vertikal'}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onclick={() => workspace.updateClip({ ...clip, framingLayout: 'crop' })}
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer {clip.framingLayout !== 'fit_blur'
+                    ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold ring-1 ring-[#B6F36B]/40 shadow-sm'
+                    : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                >
+                  <div class="text-xs font-semibold">📱 Crop Vertikal</div>
+                  <div class="text-[9px] text-[#626871] mt-0.5">Isi penuh layar 9:16</div>
+                </button>
+                <button
+                  type="button"
+                  onclick={() => workspace.updateClip({ ...clip, framingLayout: 'fit_blur' })}
+                  class="p-2.5 rounded-lg border text-left transition-all cursor-pointer {clip.framingLayout === 'fit_blur'
+                    ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold ring-1 ring-[#B6F36B]/40 shadow-sm'
+                    : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                >
+                  <div class="text-xs font-semibold">🎬 Format Asli (Gambar 2)</div>
+                  <div class="text-[9px] text-[#626871] mt-0.5">16:9 di tengah + blur</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Kustomisasi Gaya Latar Belakang (Muncul saat Format Asli Fit Blur Aktif) -->
+            {#if clip.framingLayout === 'fit_blur'}
+              <div class="p-3 bg-[#191C20] border border-[#292E34] rounded-lg space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-[#E7E9EC] font-semibold text-xs">Kustomisasi Latar Belakang</span>
+                  <span class="font-mono text-[10px] text-[#B6F36B] font-bold">
+                    {clip.backgroundStyle || 'dark_blur'}
+                  </span>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  {#each [
+                    { id: 'dark_blur' as BackgroundStyle, label: 'Blur Gelap (Gambar 2)', desc: 'Rekomendasi' },
+                    { id: 'extra_dark_blur' as BackgroundStyle, label: 'Blur Ekstra Gelap', desc: 'Kontras Tinggi' },
+                    { id: 'pure_black' as BackgroundStyle, label: 'Hitam Polos', desc: 'Letterbox Klasik' },
+                    { id: 'dark_gradient' as BackgroundStyle, label: 'Gradien Gelap', desc: 'Modern Elegan' },
+                  ] as bg (bg.id)}
+                    <button
+                      type="button"
+                      onclick={() => workspace.updateClip({ ...clip, backgroundStyle: bg.id })}
+                      class="p-2 rounded-lg border text-left transition-all cursor-pointer {(clip.backgroundStyle || 'dark_blur') === bg.id
+                        ? 'bg-[#20242A] border-[#B6F36B] text-[#B6F36B] font-bold ring-1 ring-[#B6F36B]/40 shadow-sm'
+                        : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:text-[#E7E9EC]'}"
+                    >
+                      <div class="text-xs font-semibold">{bg.label}</div>
+                      <div class="text-[9px] text-[#626871] mt-0.5">{bg.desc}</div>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
             <div>
               <span class="text-[11px] font-semibold text-[#626871] uppercase tracking-wider block mb-2">
                 Geser Posisi Kamera (Pan X)

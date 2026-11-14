@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Kroma Clip - Production FFmpeg & Python Video Rendering Engine
-Directly slices YouTube stream, crops to 9:16 vertical, generates styled subtitle cards with Pillow,
-and burns them seamlessly with FFmpeg.
+Directly slices YouTube stream, formats to portrait 9:16 (Crop Vertikal OR 16:9 Fit with Dark Blurred Background),
+generates styled kinetic subtitle cards with Pillow, and burns them inside Instagram Reels/TikTok Safe Zone specifications.
 """
 
 import os
@@ -38,7 +38,6 @@ def wrap_text_to_lines(text: str, max_lines: int, font, max_width: int) -> List[
     if max_lines <= 1:
         return [" ".join(words)]
     
-    # Simple greedy line wrapping
     lines = []
     current_line = []
     for w in words:
@@ -66,24 +65,22 @@ def generate_card_image(
 ) -> int:
     """
     Renders styled subtitle PNG card using PIL and returns the height of the card in px.
+    Padded to fit safely within the 35px side and 100px right-icon safe zone margin.
     """
     font_size = 46 if max_lines <= 2 else 38
     font = get_best_font(font_size)
     
-    # Format text: uppercase for impact styles
     display_text = text.upper() if preset in ["hormozi", "mrbeast", "vox_box", "fire_gradient"] else text
-    lines = wrap_text_to_lines(display_text, max_lines, font, max_width=900)
+    lines = wrap_text_to_lines(display_text, max_lines, font, max_width=860)
     
     line_height = font_size + 16
     content_h = len(lines) * line_height
-    card_h = content_h + 50
-    card_w = 980
+    card_h = content_h + 46
+    card_w = 920
     
     img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     
-    # Styling presets
-    # Hex to RGB
     def parse_hex(h: str, default=(182, 243, 107)):
         h = h.lstrip("#")
         try:
@@ -94,27 +91,23 @@ def generate_card_image(
     hl_rgb = parse_hex(highlight_color_hex, (182, 243, 107))
     
     if preset == "hormozi":
-        # Dark pill with lime border & text
-        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=24, fill=(15, 18, 22, 235), outline=(*hl_rgb, 255), width=4)
+        draw.rounded_rectangle([10, 8, card_w - 10, card_h - 8], radius=24, fill=(15, 18, 22, 235), outline=(*hl_rgb, 255), width=4)
         text_color = (*hl_rgb, 255)
     elif preset == "mrbeast":
-        # Yellow bold with thick dark pill
-        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=28, fill=(0, 0, 0, 245), outline=(250, 204, 21, 255), width=5)
+        draw.rounded_rectangle([10, 8, card_w - 10, card_h - 8], radius=28, fill=(0, 0, 0, 245), outline=(250, 204, 21, 255), width=5)
         text_color = (250, 204, 21, 255)
     elif preset == "vox_box":
-        # Solid dark box
-        draw.rectangle([10, 10, card_w - 10, card_h - 10], fill=(10, 10, 10, 245), outline=(255, 255, 255, 255), width=3)
+        draw.rectangle([10, 8, card_w - 10, card_h - 8], fill=(10, 10, 10, 245), outline=(255, 255, 255, 255), width=3)
         text_color = (255, 255, 255, 255)
     elif preset == "neon_glow":
-        # Neon cyan/green border
-        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=20, fill=(10, 15, 24, 225), outline=(6, 182, 212, 255), width=4)
+        draw.rounded_rectangle([10, 8, card_w - 10, card_h - 8], radius=20, fill=(10, 15, 24, 225), outline=(6, 182, 212, 255), width=4)
         text_color = (255, 255, 255, 255)
     elif preset == "fire_gradient":
-        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=24, fill=(24, 12, 10, 235), outline=(249, 115, 22, 255), width=4)
+        draw.rounded_rectangle([10, 8, card_w - 10, card_h - 8], radius=24, fill=(24, 12, 10, 235), outline=(249, 115, 22, 255), width=4)
         text_color = (254, 215, 170, 255)
     else:
-        # Minimal / default
-        draw.rounded_rectangle([10, 10, card_w - 10, card_h - 10], radius=20, fill=(20, 23, 26, 210), outline=(50, 56, 64, 200), width=2)
+        # Minimal / clean default
+        draw.rounded_rectangle([10, 8, card_w - 10, card_h - 8], radius=20, fill=(20, 23, 26, 210), outline=(50, 56, 64, 200), width=2)
         text_color = (240, 243, 246, 255)
         
     start_y = (card_h - content_h) // 2 + (font_size // 2)
@@ -131,6 +124,8 @@ def render_clip(
     end_time: float,
     output_path: str,
     aspect_ratio: str = "9:16",
+    framing_layout: str = "crop", # "crop" | "fit_blur"
+    background_style: str = "dark_blur", # "dark_blur" | "extra_dark_blur" | "pure_black" | "dark_gradient"
     caption_preset: str = "hormozi",
     caption_position: str = "bottom",
     caption_max_lines: int = 2,
@@ -161,7 +156,7 @@ def render_clip(
         raise RuntimeError("Gagal mengunduh segmen video dari YouTube")
 
     # 2. Generate subtitle card PNGs
-    print(f"[2/3] Generating kinetic subtitle cards...", flush=True)
+    print(f"[2/3] Generating kinetic subtitle cards within safe zone...", flush=True)
     overlay_cards = []
     
     if captions:
@@ -172,7 +167,6 @@ def render_clip(
             if not text:
                 continue
                 
-            # Check overlap with clip range
             if seg_end <= start_time or seg_start >= end_time:
                 continue
                 
@@ -197,8 +191,8 @@ def render_clip(
                 "height": card_h
             })
 
-    # 3. Build FFmpeg command
-    print(f"[3/3] Encoding {aspect_ratio} vertical video with burned captions...", flush=True)
+    # 3. Build FFmpeg command strictly adhering to 9:16 Portrait Canvas & Safe Zone (Gambar 3)
+    print(f"[3/3] Encoding 9:16 portrait video (framing: {framing_layout}) with safe zone subtitles...", flush=True)
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     
     ffmpeg_cmd = ["ffmpeg", "-y", "-i", raw_video]
@@ -206,12 +200,32 @@ def render_clip(
         ffmpeg_cmd.extend(["-i", c["path"]])
         
     filter_chains = []
-    # Video crop & scale to 9:16 vertical (1080x1920) or 1:1
-    if aspect_ratio == "1:1":
-        target_w, target_h = 1080, 1080
-        filter_chains.append("[0:v]crop=min(iw\\,ih):min(iw\\,ih),scale=1080:1080[v0]")
-    else: # 9:16 vertical default
-        target_w, target_h = 1080, 1920
+    target_w, target_h = 1080, 1920
+
+    # Framing Layout: Always produces 1080x1920 portrait video!
+    if framing_layout == "fit_blur":
+        # Gambar 2 style: 16:9 original video centered, with dark & blurred background
+        if background_style == "pure_black":
+            filter_chains.append("color=c=black:s=1080x1920:d=100[bg]")
+        elif background_style == "extra_dark_blur":
+            filter_chains.append(
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                "boxblur=30:5,colorlevels=rimax=0.25:gimax=0.25:bimax=0.25[bg]"
+            )
+        elif background_style == "dark_gradient":
+            filter_chains.append(
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                "boxblur=20:5,colorlevels=rimax=0.2:gimax=0.2:bimax=0.2[bg]"
+            )
+        else: # "dark_blur" default (Gambar 2)
+            filter_chains.append(
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,"
+                "boxblur=25:5,colorlevels=rimax=0.4:gimax=0.4:bimax=0.4[bg]"
+            )
+        filter_chains.append("[0:v]scale=1080:-2[main]")
+        filter_chains.append("[bg][main]overlay=0:(H-h)/2[v0]")
+    else:
+        # Standard Center Crop to 9:16 Vertical
         filter_chains.append("[0:v]crop=ih*(9/16):ih:(iw-ow)/2:0,scale=1080:1920[v0]")
         
     last_v = "v0"
@@ -220,13 +234,21 @@ def render_clip(
         input_idx = i + 1
         card_h = c["height"]
         
-        # Position calculation
+        # Gambar 3 Safe Zone standard coordinates:
+        # Top boundary: 220px (above is unsafe header)
+        # Bottom boundary: 450px (below is unsafe navigation & user handle)
         if caption_position == "top":
-            y_pos = 180
+            y_pos = 220 + 25  # 245px (safely below 220px top boundary)
         elif caption_position == "middle":
-            y_pos = (target_h - card_h) // 2
+            if framing_layout == "fit_blur":
+                # In fit_blur, 16:9 video spans y=656 to y=1264.
+                # Placing subtitle right in lower blurred band (y=1300) avoids covering the main video
+                y_pos = 1300 - (card_h // 2)
+            else:
+                y_pos = (target_h - card_h) // 2
         else: # bottom default
-            y_pos = target_h - card_h - 180
+            # Placed above 450px bottom limit (1920 - 450 = 1470)
+            y_pos = 1470 - card_h - 15  # e.g. ~1310px, clear of Reels/TikTok icons & descriptions!
             
         filter_chains.append(
             f"[{last_v}][{input_idx}:v]overlay=(W-w)/2:{y_pos}:enable='between(t,{c['start']},{c['end']})'[{next_v}]"
@@ -249,7 +271,6 @@ def render_clip(
     
     subprocess.run(ffmpeg_cmd, check=True)
     
-    # Cleanup temp cards
     try:
         for f in os.listdir(temp_dir):
             os.remove(os.path.join(temp_dir, f))
@@ -262,7 +283,9 @@ def render_clip(
         "status": "success",
         "output_path": output_path,
         "file_size": file_size,
-        "duration": duration
+        "duration": duration,
+        "framing_layout": framing_layout,
+        "background_style": background_style
     }
 
 def main():
@@ -272,6 +295,8 @@ def main():
     parser.add_argument("--end", type=float, required=True, help="End time in seconds")
     parser.add_argument("--output", required=True, help="Output MP4 file path")
     parser.add_argument("--aspect", default="9:16", help="Target aspect ratio")
+    parser.add_argument("--framing-layout", default="crop", help="Framing layout: crop or fit_blur")
+    parser.add_argument("--background-style", default="dark_blur", help="Background style: dark_blur, extra_dark_blur, pure_black, dark_gradient")
     parser.add_argument("--preset", default="hormozi", help="Caption preset")
     parser.add_argument("--position", default="bottom", help="Caption position: top, middle, bottom")
     parser.add_argument("--max-lines", type=int, default=2, help="Max caption lines: 1, 2, 3")
@@ -291,6 +316,8 @@ def main():
         end_time=args.end,
         output_path=args.output,
         aspect_ratio=args.aspect,
+        framing_layout=args.framing_layout,
+        background_style=args.background_style,
         caption_preset=args.preset,
         caption_position=args.position,
         caption_max_lines=args.max_lines,

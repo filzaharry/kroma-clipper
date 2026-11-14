@@ -288,6 +288,8 @@ function buildCandidate(
     captionPreset: config.captionPreset,
     captionPosition: config.captionPosition || 'bottom',
     captionMaxLines: config.captionMaxLines || 2,
+    framingLayout: config.framingLayout || 'crop',
+    backgroundStyle: config.backgroundStyle || 'dark_blur',
     captions: [...captions],
     bRollCuts,
   };

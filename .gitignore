@@ -10,4 +10,6 @@ coverage/
 static/exports/*.mp4
 output_clips/
 rendered_output/
+__pycache__/
+*.pyc
 

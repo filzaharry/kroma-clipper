@@ -15,6 +15,8 @@ export type CaptionStylePreset =
 
 export type CaptionPosition = 'bottom' | 'middle' | 'top';
 export type CaptionMaxLines = 1 | 2 | 3;
+export type FramingLayout = 'crop' | 'fit_blur';
+export type BackgroundStyle = 'dark_blur' | 'extra_dark_blur' | 'pure_black' | 'dark_gradient';
 
 export interface CaptionWord {
   word: string;
@@ -61,6 +63,8 @@ export interface ClippingRuleConfig {
   captionHighlightColor: string;
   captionPosition?: CaptionPosition;
   captionMaxLines?: CaptionMaxLines;
+  framingLayout?: FramingLayout;
+  backgroundStyle?: BackgroundStyle;
   maxCandidates: number;
 }
 
@@ -86,6 +90,8 @@ export interface ClipCandidate {
   captionPreset: CaptionStylePreset;
   captionPosition?: CaptionPosition;
   captionMaxLines?: CaptionMaxLines;
+  framingLayout?: FramingLayout;
+  backgroundStyle?: BackgroundStyle;
   captions: CaptionSegment[];
   bRollCuts?: Array<{ timestamp: number; type: 'zoom_in' | 'speaker_switch' | 'graphic' }>;
 }
@@ -100,6 +106,8 @@ export interface RenderTask {
   bitrateMbps: number;
   format: 'mp4' | 'mov' | 'prores';
   includeSubtitles: 'burned' | 'separate_srt' | 'none';
+  framingLayout?: FramingLayout;
+  backgroundStyle?: BackgroundStyle;
   progress: number; // 0 to 100
   status: 'queued' | 'rendering' | 'completed' | 'failed';
   downloadUrl?: string;
