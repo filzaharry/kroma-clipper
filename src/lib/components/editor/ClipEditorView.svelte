@@ -250,20 +250,29 @@
               </span>
               <div class="grid grid-cols-2 gap-2">
                 {#each [
-                  { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Pop' },
-                  { id: 'minimal' as CaptionStylePreset, label: 'Minimal Bersih' },
-                  { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow' },
-                  { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Kontras' },
+                  { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Pop', tag: 'Populer' },
+                  { id: 'mrbeast' as CaptionStylePreset, label: 'MrBeast Energy', tag: 'Viral' },
+                  { id: 'ali_abdaal' as CaptionStylePreset, label: 'Ali Abdaal', tag: 'Elegan' },
+                  { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow', tag: 'Mengalir' },
+                  { id: 'neon_glow' as CaptionStylePreset, label: 'Neon Cyber', tag: 'Glow' },
+                  { id: 'vox_box' as CaptionStylePreset, label: 'Vox Media Box', tag: 'Kontras' },
+                  { id: 'cinematic' as CaptionStylePreset, label: 'Sinematik Minimal', tag: 'Clean' },
+                  { id: 'typewriter' as CaptionStylePreset, label: 'Mesin Ketik', tag: 'Terminal' },
+                  { id: 'fire_gradient' as CaptionStylePreset, label: 'Api Hype (Gradient)', tag: 'Hype' },
+                  { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Gelap Klasik', tag: 'Standar' },
                 ] as preset (preset.id)}
                   <button
                     type="button"
                     onclick={() => workspace.updateClip({ ...clip, captionPreset: preset.id })}
-                    class="p-2.5 rounded-lg border text-left transition-colors cursor-pointer {clip.captionPreset ===
+                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer {clip.captionPreset ===
                     preset.id
-                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC] font-semibold shadow-sm'
-                      : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
+                      ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC] font-semibold ring-1 ring-[#B6F36B]/40 shadow-sm'
+                      : 'bg-[#191C20] border-[#292E34] text-[#9299A3] hover:border-[#383F47] hover:text-[#E7E9EC]'}"
                   >
-                    {preset.label}
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-semibold">{preset.label}</span>
+                      <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-[#111315] text-[#B6F36B] border border-[#292E34]">{preset.tag}</span>
+                    </div>
                   </button>
                 {/each}
               </div>

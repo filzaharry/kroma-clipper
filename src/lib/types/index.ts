@@ -1,6 +1,17 @@
 export type AspectRatio = '9:16' | '1:1' | '16:9';
 export type FramingMode = 'face_track' | 'split_screen' | 'manual_pan' | 'centered';
-export type CaptionStylePreset = 'hormozi' | 'minimal' | 'karaoke' | 'subtle_box';
+export type CaptionStylePreset =
+  | 'hormozi'
+  | 'mrbeast'
+  | 'ali_abdaal'
+  | 'minimal'
+  | 'karaoke'
+  | 'neon_glow'
+  | 'vox_box'
+  | 'cinematic'
+  | 'typewriter'
+  | 'fire_gradient'
+  | 'subtle_box';
 
 export interface CaptionWord {
   word: string;

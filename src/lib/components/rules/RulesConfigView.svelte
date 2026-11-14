@@ -448,16 +448,22 @@
 
         <div class="grid grid-cols-2 gap-2 text-xs">
           {#each [
-            { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Kinetic', desc: 'Teks tebal, warna pop per kata' },
-            { id: 'minimal' as CaptionStylePreset, label: 'Minimalis Bersih', desc: 'Subtitle elegan tanpa animasi heboh' },
-            { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow', desc: 'Sorotan warna berjalan mengikuti ucapan' },
-            { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Kontras Tinggi', desc: 'Kotak gelap solid di belakang teks' },
+            { id: 'hormozi' as CaptionStylePreset, label: 'Hormozi Pop', desc: 'Teks tebal huruf besar, pop per kata dengan outline' },
+            { id: 'mrbeast' as CaptionStylePreset, label: 'MrBeast Energy', desc: 'Teks miring extra bold, kata aktif badge kuning' },
+            { id: 'ali_abdaal' as CaptionStylePreset, label: 'Ali Abdaal', desc: 'Pill badge melengkung transparan elegan' },
+            { id: 'karaoke' as CaptionStylePreset, label: 'Karaoke Glow', desc: 'Warna menyala mengalir mengikuti ucapan' },
+            { id: 'neon_glow' as CaptionStylePreset, label: 'Neon Cyber', desc: 'Pendar cahaya futuristik cyan/magenta' },
+            { id: 'vox_box' as CaptionStylePreset, label: 'Vox / Media Box', desc: 'Kotak kontras tinggi ala jurnalisme berita' },
+            { id: 'cinematic' as CaptionStylePreset, label: 'Sinematik Minimal', desc: 'Huruf tipis berjarak lebar, bersih & mewah' },
+            { id: 'typewriter' as CaptionStylePreset, label: 'Mesin Ketik Terminal', desc: 'Font monospace dengan kursor berkedip' },
+            { id: 'fire_gradient' as CaptionStylePreset, label: 'Api Hype (Gradient)', desc: 'Gradasi api menyala pada kata ditekankan' },
+            { id: 'subtle_box' as CaptionStylePreset, label: 'Kotak Gelap Klasik', desc: 'Kotak gelap kontras standar yang mudah dibaca' },
           ] as preset (preset.id)}
             <button
               type="button"
               onclick={() => workspace.updateRules({ ...rules, captionPreset: preset.id })}
               class="p-2.5 rounded border text-left transition-colors cursor-pointer {rules.captionPreset === preset.id
-                ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC]'
+                ? 'bg-[#20242A] border-[#B6F36B] text-[#E7E9EC] ring-1 ring-[#B6F36B]/40'
                 : 'bg-[#14171A] border-[#292E34] text-[#9299A3] hover:border-[#383F47]'}"
             >
               <div class="font-medium">{preset.label}</div>

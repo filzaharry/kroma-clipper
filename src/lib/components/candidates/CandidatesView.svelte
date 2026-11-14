@@ -424,13 +424,13 @@
 <!-- MODAL PREVIEW HASIL KLIP (Interaktif 9:16 + Subtitle + Watermark) -->
 {#if previewModalClip}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-    <div class="bg-[#14171A] border border-[#292E34] rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+    <div class="bg-[#14171A] border border-[#292E34] rounded-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden shadow-2xl">
       <!-- Modal Header -->
       <div class="h-12 border-b border-[#292E34] px-4 flex items-center justify-between bg-[#191C20] shrink-0">
         <div class="flex items-center gap-2.5 overflow-hidden">
-          <span class="w-2 h-2 rounded-full bg-[#B6F36B]"></span>
-          <span class="text-xs font-bold text-[#E7E9EC] truncate max-w-[320px]">
-            Preview: {previewModalClip.title}
+          <span class="w-2 h-2 rounded-full bg-[#B6F36B] animate-pulse"></span>
+          <span class="text-xs font-bold text-[#E7E9EC] truncate max-w-[340px]">
+            Preview Video 9:16: {previewModalClip.title}
           </span>
           <span class="text-[10px] font-mono text-[#B6F36B] px-1.5 py-0.5 rounded bg-[#111315] border border-[#292E34]">
             {previewModalClip.duration}s
@@ -448,7 +448,7 @@
       </div>
 
       <!-- Modal Body: Player Interaktif -->
-      <div class="flex-1 flex overflow-hidden min-h-[460px] max-h-[520px]">
+      <div class="flex-1 flex overflow-hidden min-h-[560px]">
         <EditorPlayer
           clip={previewModalClip}
           bind:currentTime={modalCurrentTime}
