@@ -12,8 +12,6 @@
     Layers,
     Play,
     SquarePlay,
-    Scissors,
-    Download,
     RotateCcw,
   } from 'lucide-svelte';
 
@@ -49,17 +47,6 @@
     },
   ]);
 
-  function handleGoToCandidates() {
-    goto('/candidates');
-  }
-
-  function handleOpenFirstClipEditor() {
-    if (workspace.candidates.length > 0) {
-      workspace.selectClip(workspace.candidates[0]);
-      goto(`/editor?clipId=${workspace.candidates[0].id}`);
-    }
-  }
-
   // Otomatis jalankan analisis saat halaman dibuka jika belum dianalisis
   $effect(() => {
     if (
@@ -86,17 +73,6 @@
     </div>
 
     <div class="flex items-center gap-2">
-      {#if detectedClipsCount > 0 && !workspace.isAnalyzing}
-        <button
-          type="button"
-          onclick={handleGoToCandidates}
-          class="h-9 px-4 text-xs font-semibold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
-        >
-          <span>👉 Lanjut ke Pilihan Klip ({detectedClipsCount})</span>
-          <ArrowRight class="w-3.5 h-3.5 stroke-[2.2]" />
-        </button>
-      {/if}
-
       {#if workspace.activeVideo && !workspace.isAnalyzing}
         <button
           type="button"
@@ -136,48 +112,27 @@
   {:else}
     <!-- Main Analysis Container -->
     <div class="max-w-4xl space-y-6">
-      <!-- SUCCESS BANNER: Muncul saat klip berhasil dipotong -->
+      <!-- SUCCESS BANNER: Menampilkan info bahwa klip berhasil dipotong (tanpa button aksi) -->
       {#if detectedClipsCount > 0 && !workspace.isAnalyzing}
-        <div class="p-6 rounded-xl bg-gradient-to-r from-[#172214] via-[#191C20] to-[#191C20] border-2 border-[#B6F36B] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-xl bg-[#B6F36B]/20 border border-[#B6F36B] flex items-center justify-center text-[#B6F36B] shrink-0 mt-0.5">
-              <CheckCircle2 class="w-7 h-7" />
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="text-base font-bold text-[#E7E9EC]">
-                  🎉 {detectedClipsCount} Klip Viral Berhasil Dipotong & Siap!
-                </span>
-                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] font-semibold border border-[#B6F36B]/40">
-                  SIAP UNDUH
-                </span>
-              </div>
-              <p class="text-xs text-[#9299A3] mt-1.5 max-w-xl leading-relaxed">
-                Video <strong class="text-[#E7E9EC]">"{workspace.activeVideo.title}"</strong> telah dipotong menjadi {detectedClipsCount} bagian terbaik dengan skor retensi tinggi, lengkap dengan transkrip kata-per-kata dan format vertikal 9:16.
-              </p>
-              <div class="mt-2 text-xs text-[#B6F36B] font-medium flex items-center gap-1.5">
-                <span>✓ Klip bisa langsung diunduh (MP4) atau ditonton preview-nya terlebih dahulu.</span>
-              </div>
-            </div>
+        <div class="p-6 rounded-xl bg-gradient-to-r from-[#172214] via-[#191C20] to-[#191C20] border-2 border-[#B6F36B] shadow-xl flex items-start gap-4">
+          <div class="w-12 h-12 rounded-xl bg-[#B6F36B]/20 border border-[#B6F36B] flex items-center justify-center text-[#B6F36B] shrink-0 mt-0.5">
+            <CheckCircle2 class="w-7 h-7" />
           </div>
-
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto shrink-0">
-            <button
-              type="button"
-              onclick={handleGoToCandidates}
-              class="h-11 px-5 text-xs font-bold text-[#111315] bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer"
-            >
-              <span>👉 Lanjut ke Pilihan Klip & Unduh</span>
-              <ArrowRight class="w-4 h-4 stroke-[2.4]" />
-            </button>
-            <button
-              type="button"
-              onclick={handleOpenFirstClipEditor}
-              class="h-11 px-4 text-xs font-medium text-[#E7E9EC] bg-[#20242A] hover:bg-[#292E34] border border-[#292E34] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Scissors class="w-3.5 h-3.5 text-[#B6F36B]" />
-              <span>Preview di Editor</span>
-            </button>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-base font-bold text-[#E7E9EC]">
+                🎉 {detectedClipsCount} Klip Viral Berhasil Dipotong & Siap!
+              </span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] font-semibold border border-[#B6F36B]/40">
+                SIAP DIEDIT
+              </span>
+            </div>
+            <p class="text-xs text-[#9299A3] mt-1.5 max-w-2xl leading-relaxed">
+              Video <strong class="text-[#E7E9EC]">"{workspace.activeVideo.title}"</strong> telah dipotong menjadi {detectedClipsCount} bagian terbaik dengan skor retensi tinggi, lengkap dengan transkrip kata-per-kata dan format vertikal 9:16.
+            </p>
+            <div class="mt-2 text-xs text-[#B6F36B] font-medium flex items-center gap-1.5">
+              <span>✓ Buka menu 3. Pilihan Klip di navigasi untuk melihat dan mengedit seluruh klip.</span>
+            </div>
           </div>
         </div>
       {/if}
