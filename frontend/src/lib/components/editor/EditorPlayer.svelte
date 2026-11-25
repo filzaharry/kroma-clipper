@@ -50,18 +50,19 @@
   let bgVideoRef: HTMLVideoElement | null = $state(null);
   let previewVideoUrl = $state<string | null>(null);
   let isLoadingPreview = $state(false);
+  let previewError = $state<string | null>(null);
 
   // Render task status untuk tombol preview hasil final MP4 jika sudah pernah dirender
   const renderedTask = $derived(
     workspace.renderTasks.find(
-      (t) => t.clipId === clip.id && t.status === 'completed' && t.outputUrl
+      (t) => t.clipId === clip.id && t.status === 'completed' && t.downloadUrl
     )
   );
   let showRenderedVideo = $state(false);
 
-  // Sumber video aktif: jika user memilih preview MP4 final, gunakan outputUrl; jika tidak, gunakan previewVideoUrl potongan bersih
+  // Sumber video aktif: jika user memilih preview MP4 final, gunakan downloadUrl; jika tidak, gunakan previewVideoUrl potongan bersih
   const activeVideoUrl = $derived(
-    showRenderedVideo && renderedTask?.outputUrl ? renderedTask.outputUrl : previewVideoUrl
+    showRenderedVideo && renderedTask?.downloadUrl ? renderedTask.downloadUrl : previewVideoUrl
   );
 
   // Background Music (BGM) dari Link YouTube
@@ -144,6 +145,7 @@
     const end = clip.endTime;
 
     isLoadingPreview = true;
+    previewError = null;
     previewVideoUrl = null;
 
     fetch('/api/preview', {
@@ -161,9 +163,14 @@
           previewVideoUrl = data.url;
           currentTime = start;
           isPlaying = true;
+        } else {
+          previewError = data.error || 'Video preview tidak dapat dimuat';
         }
       })
-      .catch((e) => console.warn('Preview video error:', e))
+      .catch((e) => {
+        console.warn('Preview video error:', e);
+        previewError = e.message || 'Gagal terhubung ke server preview';
+      })
       .finally(() => {
         isLoadingPreview = false;
       });
@@ -558,12 +565,14 @@
             </div>
           {:else}
             <!-- Tombol Muat Ulang Preview jika belum siap -->
-            <div class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2.5 p-4 text-center z-20">
-              <span class="text-xs text-[#E7E9EC]">Video preview belum siap</span>
+            <div class="absolute inset-0 bg-black/85 flex flex-col items-center justify-center gap-3 p-5 text-center z-20">
+              <span class="text-xs text-[#E7E9EC] font-semibold max-w-[220px]">
+                {previewError || 'Video preview belum siap'}
+              </span>
               <button
                 type="button"
                 onclick={fetchPreviewVideo}
-                class="px-3 py-1.5 rounded-lg bg-[#B6F36B] text-[#111315] font-bold text-xs hover:bg-[#A5E456] transition-colors cursor-pointer"
+                class="px-4 py-2 rounded-lg bg-[#B6F36B] text-[#111315] font-bold text-xs hover:bg-[#A5E456] transition-colors cursor-pointer shadow-md"
               >
                 Muat Ulang Preview
               </button>
@@ -848,7 +857,7 @@
       </div>
 
       <!-- LAYER 4.5: WATERMARK / LOGO KUSTOM (1:1 DENGAN HASIL DOWNLOAD) -->
-      {#if isWatermarkActive}
+      {#if isWatermarkActive && watermarkConfig?.imageUrl}
         <div class="absolute {watermarkPositionClass} z-28 pointer-events-none transition-all flex items-center justify-center">
           <img
             src={watermarkConfig.imageUrl}
@@ -860,7 +869,7 @@
       {/if}
 
       <!-- AUDIO BGM ELEMENT (PUTAR SINKRON DENGAN VIDEO) -->
-      {#if isBgmActive}
+      {#if isBgmActive && bgmConfig?.audioUrl}
         <audio
           bind:this={bgmAudioRef}
           src={bgmConfig.audioUrl}

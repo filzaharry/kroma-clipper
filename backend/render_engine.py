@@ -219,7 +219,9 @@ def render_clip(
         "yt-dlp",
         "--download-sections", f"*{start_time}-{end_time}",
         "--force-keyframes-at-cuts",
-        "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "--no-playlist",
+        "-f", "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b",
+        "--merge-output-format", "mp4",
         "-o", raw_video,
         youtube_url
     ]
