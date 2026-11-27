@@ -25,6 +25,9 @@
     Tag,
     FileText,
     Send,
+    RefreshCw,
+    Maximize2,
+    Eye,
   } from 'lucide-svelte';
 
   const queryClipId = $derived(page.url.searchParams.get('clipId'));
@@ -71,6 +74,31 @@
   // Modal panduan upload instan
   let showUploadGuideModal = $state(false);
 
+  // Automated 3D Thumbnail Engine States
+  let isGeneratingThumbnails = $state(false);
+  let thumbnailGenerationError = $state<string | null>(null);
+  let customThumbnails = $state<
+    Array<{
+      id: number;
+      styleKey: string;
+      title: string;
+      tag: string;
+      badgeColor: string;
+      url: string;
+      filename: string;
+      styleName?: string;
+    }>
+  >([]);
+  let previewModalThumbnail = $state<{
+    id?: number;
+    url: string;
+    title: string;
+    tag: string;
+    badgeColor: string;
+    styleName?: string;
+  } | null>(null);
+  let lastFetchedClipId = $state<string>('');
+
   const selectedClip = $derived.by(() => {
     if (selectedClipId) {
       const found = workspace.candidates.find((c) => c.id === selectedClipId);
@@ -106,30 +134,91 @@
     return [
       {
         id: 0,
+        styleKey: 'viral_hormozi',
         title: 'Frame Hook Utama (Rasa Penasaran)',
         tag: 'Paling Disarankan',
         badgeColor: 'bg-[#B6F36B] text-[#111315]',
         imgUrl: baseImg,
+        url: '',
+        filename: '',
+        styleName: 'Hormozi / MrBeast 3D',
         overlayText: selectedClip.title.toUpperCase(),
       },
       {
         id: 1,
+        styleKey: 'cinematic_podcast',
         title: 'Frame Puncak Energi & Reaksi',
         tag: 'Dinamis',
         badgeColor: 'bg-[#F59E0B] text-[#111315]',
         imgUrl: baseImg,
+        url: '',
+        filename: '',
+        styleName: 'Cinematic Podcast',
         overlayText: '“' + (selectedClip.excerptQuote || selectedClip.title).slice(0, 32) + '...”',
       },
       {
         id: 2,
+        styleKey: 'shock_revelation',
         title: 'Frame Punchline Vertikal 9:16',
         tag: 'Skor ' + selectedClip.score,
         badgeColor: 'bg-[#3B82F6] text-white',
         imgUrl: baseImg,
+        url: '',
+        filename: '',
+        styleName: 'Shock Click-Magnet',
         overlayText: 'JANGAN SAMPAI LEWAT! 🔥',
       },
     ];
   });
+
+  const activeThumbnails = $derived.by(() => {
+    if (customThumbnails.length > 0) {
+      return customThumbnails;
+    }
+    return thumbnailRecommendations;
+  });
+
+  async function fetchThumbnailsForClip(clip: ClipCandidate | null, force: boolean = false) {
+    if (!clip) return;
+    isGeneratingThumbnails = true;
+    thumbnailGenerationError = null;
+
+    try {
+      const res = await fetch('/api/thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: clip.sourceVideoId || workspace.activeVideo?.id || 'wsCBMCa_DBA',
+          startTime: clip.startTime,
+          endTime: clip.endTime,
+          title: clip.title,
+          quote: clip.excerptQuote || clip.title,
+          speaker: clip.speaker || 'Podcast',
+          score: clip.score || 85,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && Array.isArray(data.thumbnails) && data.thumbnails.length > 0) {
+        customThumbnails = data.thumbnails.map((t: any) => ({
+          ...t,
+          styleName:
+            t.styleKey === 'viral_hormozi'
+              ? 'Hormozi / MrBeast 3D'
+              : t.styleKey === 'cinematic_podcast'
+                ? 'Cinematic Podcast'
+                : 'Shock Click-Magnet',
+        }));
+      } else if (data.error) {
+        thumbnailGenerationError = data.error;
+      }
+    } catch (err: any) {
+      console.warn('Gagal memuat thumbnail otomatis:', err);
+      thumbnailGenerationError = err.message || 'Gagal memuat thumbnail';
+    } finally {
+      isGeneratingThumbnails = false;
+    }
+  }
 
   // Rekomendasi 3 variasi Judul Hook Viral
   const titleRecommendations = $derived.by(() => {
@@ -188,7 +277,12 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
       }
       descriptionInput = generateDefaultDescription(selectedClip);
       tagsInput = generateDefaultTags(selectedClip);
-      selectedThumbnailIndex = 0;
+
+      if (selectedClip.id !== lastFetchedClipId) {
+        lastFetchedClipId = selectedClip.id;
+        selectedThumbnailIndex = 0;
+        fetchThumbnailsForClip(selectedClip);
+      }
     }
   });
 
@@ -221,12 +315,15 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
 
   function downloadThumbnailFile() {
     if (!selectedClip) return;
-    const url = getThumbnailUrl(selectedClip);
+    const currentList = activeThumbnails;
+    const current = currentList[selectedThumbnailIndex] || currentList[0];
+    const url = current?.url || (current as any)?.imgUrl || getThumbnailUrl(selectedClip);
     if (!url) return;
 
+    const styleKey = current?.styleKey || 'style';
     const a = document.createElement('a');
     a.href = url;
-    a.download = `thumbnail_${selectedClip.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}.jpg`;
+    a.download = `thumbnail_shorts_${selectedClip.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${styleKey}.jpg`;
     a.target = '_blank';
     document.body.appendChild(a);
     a.click();
@@ -434,83 +531,151 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
           </select>
         </div>
 
-        <!-- 2. REKOMENDASI THUMBNAIL (VISUAL 9:16) -->
+        <!-- 2. REKOMENDASI THUMBNAIL (VISUAL 9:16 NON-FLAT AUTO-DESIGN) -->
         <div class="p-5 rounded-xl bg-[#191C20] border border-[#292E34] space-y-4">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center gap-2">
               <ImageIcon class="w-4 h-4 text-[#B6F36B]" />
-              <span class="text-sm font-bold text-[#E7E9EC]">
-                Rekomendasi Thumbnail YouTube Shorts (Format 9:16)
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-[#E7E9EC]">
+                  Thumbnail YouTube Shorts (Format 9:16)
+                </span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] border border-[#B6F36B]/30 font-bold">
+                  ✨ Python 3D Engine
+                </span>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onclick={downloadThumbnailFile}
-              class="h-7 px-2.5 rounded-md bg-[#20242A] hover:bg-[#282E36] text-[#B6F36B] hover:text-[#A5E456] text-[11px] font-semibold border border-[#292E34] flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Unduh file gambar thumbnail resolusi tinggi"
-            >
-              <Download class="w-3.5 h-3.5" />
-              <span>Unduh Thumbnail (JPG)</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                onclick={() => fetchThumbnailsForClip(selectedClip, true)}
+                disabled={isGeneratingThumbnails}
+                class="h-7 px-2.5 rounded-md bg-[#20242A] hover:bg-[#282E36] text-[#9299A3] hover:text-[#E7E9EC] text-[11px] font-semibold border border-[#292E34] flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                title="Generate ulang desain thumbnail dengan AI Python"
+              >
+                <RefreshCw class="w-3.5 h-3.5 {isGeneratingThumbnails ? 'animate-spin text-[#B6F36B]' : ''}" />
+                <span>{isGeneratingThumbnails ? 'Mendesain...' : 'Buat Ulang Desain'}</span>
+              </button>
+
+              <button
+                type="button"
+                onclick={downloadThumbnailFile}
+                class="h-7 px-2.5 rounded-md bg-[#20242A] hover:bg-[#282E36] text-[#B6F36B] hover:text-[#A5E456] text-[11px] font-semibold border border-[#292E34] flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                title="Unduh file gambar thumbnail resolusi tinggi 1080x1920 (JPG)"
+              >
+                <Download class="w-3.5 h-3.5" />
+                <span>Unduh Thumbnail (JPG)</span>
+              </button>
+            </div>
           </div>
 
           <p class="text-xs text-[#9299A3]">
-            Pilih visual frame dengan ekspresi pembicara terbaik dan kontras tinggi untuk menarik klik penonton (CTR) di feed Shorts:
+            Desain dinamis otomatis berbasis Python Pillow: frame video asli, tipografi 3D bertingkat (Impact), stiker miring, dan kontras tinggi untuk memaksimalkan rasio klik (CTR) di Shorts feed:
           </p>
 
-          <!-- Thumbnail Options Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-            {#each thumbnailRecommendations as thumb (thumb.id)}
-              {@const isSelected = selectedThumbnailIndex === thumb.id}
-              <button
-                type="button"
-                onclick={() => (selectedThumbnailIndex = thumb.id)}
-                class="group flex flex-col rounded-xl overflow-hidden border-2 transition-all cursor-pointer text-left {isSelected
-                  ? 'border-[#B6F36B] ring-2 ring-[#B6F36B]/30 shadow-lg'
-                  : 'border-[#292E34] hover:border-[#383F47] bg-[#14171A]'}"
-              >
-                <!-- 9:16 Aspect Thumbnail Container -->
-                <div class="relative aspect-[9/14] w-full bg-black overflow-hidden flex items-center justify-center">
-                  <img
-                    src={thumb.imgUrl}
-                    alt={thumb.title}
-                    class="w-full h-full object-cover filter brightness-90 group-hover:brightness-95 transition-all"
-                  />
-                  <!-- Vignette & text overlay -->
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/40"></div>
+          {#if isGeneratingThumbnails && customThumbnails.length === 0}
+            <!-- Loading Skeleton -->
+            <div class="p-8 rounded-xl bg-[#14171A] border border-[#292E34] flex flex-col items-center justify-center gap-3 text-center">
+              <Loader2 class="w-7 h-7 text-[#B6F36B] animate-spin" />
+              <div>
+                <div class="text-xs font-bold text-[#E7E9EC]">
+                  Menghasilkan 3 Variasi Desain Thumbnail Non-Flat...
+                </div>
+                <div class="text-[11px] text-[#9299A3] mt-1">
+                  Mengekstrak frame video pada momen hook emosional & menerapkan tipografi 3D 1080x1920.
+                </div>
+              </div>
+            </div>
+          {:else}
+            <!-- Thumbnail Options Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              {#each activeThumbnails as thumb (thumb.id)}
+                {@const isSelected = selectedThumbnailIndex === thumb.id}
+                {@const displayImg = thumb.url || (thumb as any).imgUrl}
+                <div
+                  role="button"
+                  tabindex="0"
+                  onclick={() => (selectedThumbnailIndex = thumb.id)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      selectedThumbnailIndex = thumb.id;
+                    }
+                  }}
+                  class="group relative flex flex-col rounded-xl overflow-hidden border-2 transition-all cursor-pointer text-left {isSelected
+                    ? 'border-[#B6F36B] ring-2 ring-[#B6F36B]/30 shadow-xl'
+                    : 'border-[#292E34] hover:border-[#383F47] bg-[#14171A]'}"
+                >
+                  <!-- 9:16 Aspect Thumbnail Container -->
+                  <div class="relative aspect-[9/16] w-full bg-black overflow-hidden flex items-center justify-center">
+                    <img
+                      src={displayImg}
+                      alt={thumb.title}
+                      class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                    />
 
-                  <!-- Tag Pill -->
-                  <div class="absolute top-2 left-2 z-10 px-2 py-0.5 rounded text-[10px] font-bold font-mono {thumb.badgeColor}">
-                    {thumb.tag}
+                    <!-- Tag Pill -->
+                    <div class="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded text-[10px] font-bold font-mono shadow-md {thumb.badgeColor}">
+                      {thumb.tag}
+                    </div>
+
+                    <!-- Zoom / Fullscreen Button -->
+                    <button
+                      type="button"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        previewModalThumbnail = {
+                          id: thumb.id,
+                          url: displayImg,
+                          title: thumb.title,
+                          tag: thumb.tag,
+                          badgeColor: thumb.badgeColor,
+                          styleName: (thumb as any).styleName || 'Custom 3D',
+                        };
+                      }}
+                      class="absolute top-2.5 right-2.5 z-20 w-7 h-7 rounded-full bg-black/70 hover:bg-black text-white hover:text-[#B6F36B] flex items-center justify-center transition-all shadow-md backdrop-blur-sm cursor-pointer border border-white/20"
+                      title="Lihat Pratinjau Resolusi Penuh (1080x1920)"
+                    >
+                      <Eye class="w-3.5 h-3.5" />
+                    </button>
+
+                    <!-- Fallback Overlay Text only if not generated by python engine yet -->
+                    {#if !(thumb as any).url && (thumb as any).overlayText}
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/40"></div>
+                      <div class="absolute bottom-3 inset-x-2.5 z-10 text-center">
+                        <span class="inline-block px-2 py-1 rounded bg-black/80 backdrop-blur-sm border border-white/10 text-[11px] font-black text-[#B6F36B] uppercase leading-tight shadow-md">
+                          {(thumb as any).overlayText}
+                        </span>
+                      </div>
+                    {/if}
+
+                    {#if isSelected}
+                      <div class="absolute bottom-2.5 right-2.5 z-10 px-2 py-0.5 rounded-md bg-[#B6F36B] text-[#111315] text-[10px] font-bold flex items-center gap-1 shadow-md">
+                        <Check class="w-3 h-3 stroke-[3]" />
+                        <span>AKTIF</span>
+                      </div>
+                    {/if}
                   </div>
 
-                  <!-- Dynamic Teaser Text Overlay -->
-                  <div class="absolute bottom-3 inset-x-2.5 z-10 text-center">
-                    <span class="inline-block px-2 py-1 rounded bg-black/80 backdrop-blur-sm border border-white/10 text-[11px] font-black text-[#B6F36B] uppercase leading-tight shadow-md">
-                      {thumb.overlayText}
+                  <!-- Label & Style Info -->
+                  <div class="p-2.5 bg-[#14171A] flex-1 flex flex-col justify-between">
+                    <div>
+                      <div class="text-[11px] font-bold text-[#E7E9EC] line-clamp-1">
+                        {thumb.title}
+                      </div>
+                      <div class="text-[10px] font-semibold text-[#B6F36B] mt-0.5">
+                        {(thumb as any).styleName || 'Gaya 3D High-CTR'}
+                      </div>
+                    </div>
+                    <span class="text-[10px] text-[#626871] mt-1.5">
+                      {isSelected ? '✓ Terpilih untuk YouTube Shorts' : 'Klik untuk memilih desain ini'}
                     </span>
                   </div>
-
-                  {#if isSelected}
-                    <div class="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-[#B6F36B] text-[#111315] flex items-center justify-center shadow">
-                      <Check class="w-3.5 h-3.5 stroke-[3]" />
-                    </div>
-                  {/if}
                 </div>
-
-                <!-- Label -->
-                <div class="p-2.5 bg-[#14171A] flex-1 flex flex-col justify-between">
-                  <div class="text-[11px] font-semibold text-[#E7E9EC] line-clamp-1">
-                    {thumb.title}
-                  </div>
-                  <span class="text-[10px] text-[#626871] mt-0.5">
-                    {isSelected ? '✓ Terpilih untuk upload' : 'Klik untuk memilih'}
-                  </span>
-                </div>
-              </button>
-            {/each}
-          </div>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <!-- 3. REKOMENDASI JUDUL (SESUAI HOOK VIRAL) -->
@@ -1160,6 +1325,71 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
           class="px-4 py-1.5 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-semibold text-xs transition-colors cursor-pointer"
         >
           Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- MODAL FULL RESOLUTION THUMBNAIL PREVIEW (1080x1920) -->
+{#if previewModalThumbnail}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div class="w-full max-w-lg rounded-2xl bg-[#191C20] border border-[#292E34] shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col max-h-[92vh]">
+      <!-- Header -->
+      <div class="p-4 border-b border-[#292E34] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-[#B6F36B]/20 border border-[#B6F36B] flex items-center justify-center text-[#B6F36B]">
+            <ImageIcon class="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <div class="text-xs font-bold text-[#E7E9EC]">{previewModalThumbnail.title}</div>
+            <div class="text-[10px] text-[#B6F36B] font-mono">{previewModalThumbnail.styleName} · Format 9:16 (1080x1920)</div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick={() => (previewModalThumbnail = null)}
+          class="text-[#9299A3] hover:text-[#E7E9EC] p-1.5 rounded-lg hover:bg-[#20242A] transition-colors cursor-pointer text-xs"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Body / Image Container -->
+      <div class="p-4 flex-1 overflow-y-auto flex items-center justify-center bg-[#0F1115]">
+        <div class="relative w-full max-w-[300px] aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border border-[#292E34]">
+          <img
+            src={previewModalThumbnail.url}
+            alt={previewModalThumbnail.title}
+            class="w-full h-full object-cover"
+          />
+        </div>
+      </div>
+
+      <!-- Footer Buttons -->
+      <div class="p-4 border-t border-[#292E34] bg-[#14171A] flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onclick={() => {
+            if (previewModalThumbnail?.id !== undefined) {
+              selectedThumbnailIndex = previewModalThumbnail.id;
+            }
+            previewModalThumbnail = null;
+          }}
+          class="h-9 px-4 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] text-xs font-semibold border border-[#292E34] flex items-center gap-1.5 transition-colors cursor-pointer"
+        >
+          <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+          <span>Pilih Desain Ini</span>
+        </button>
+
+        <button
+          type="button"
+          onclick={downloadThumbnailFile}
+          class="h-9 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+        >
+          <Download class="w-3.5 h-3.5" />
+          <span>Unduh File JPG (1080x1920)</span>
         </button>
       </div>
     </div>

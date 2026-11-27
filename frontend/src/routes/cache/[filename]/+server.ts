@@ -16,7 +16,18 @@ export const GET: RequestHandler = async ({ params, request }) => {
   const range = request.headers.get('range');
 
   const ext = path.extname(safeFilename).toLowerCase();
-  const contentType = ext === '.m4a' ? 'audio/mp4' : ext === '.webm' ? 'video/webm' : 'video/mp4';
+  const contentType =
+    ext === '.jpg' || ext === '.jpeg'
+      ? 'image/jpeg'
+      : ext === '.png'
+        ? 'image/png'
+        : ext === '.webp'
+          ? 'image/webp'
+          : ext === '.m4a'
+            ? 'audio/mp4'
+            : ext === '.webm'
+              ? 'video/webm'
+              : 'video/mp4';
 
   if (range) {
     const parts = range.replace(/bytes=/, '').split('-');
