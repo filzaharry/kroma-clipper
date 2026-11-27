@@ -301,7 +301,7 @@ def render_style_viral_hormozi(
 
     # 1. Top Tilted Sticker Ribbon (-5 degrees tilt)
     ribbon_font = get_font(size=44, prefer_impact=True)
-    ribbon_text = "🔥 WAJIB NONTON!"
+    ribbon_text = ">> WAJIB NONTON! <<"
     rotated_ribbon, _ = render_tilted_ribbon(
         text=ribbon_text,
         font=ribbon_font,
@@ -357,7 +357,7 @@ def render_style_viral_hormozi(
     # 3. Speaker Pill Tag at bottom
     if speaker:
         speaker_font = get_font(size=36, prefer_impact=False)
-        tag_text = f"🎙️ {speaker.upper()} • KLIP VIRAL"
+        tag_text = f"• {speaker.upper()} • KLIP VIRAL"
         s_bbox = speaker_font.getbbox(tag_text)
         sw = s_bbox[2] - s_bbox[0]
         sh = s_bbox[3] - s_bbox[1]
@@ -396,7 +396,7 @@ def render_style_cinematic_podcast(
 
     # 1. Top Red Pill Badge
     badge_font = get_font(size=40, prefer_impact=True)
-    badge_text = "🔴 PODCAST KLIMAKS"
+    badge_text = "[REC] PODCAST KLIMAKS"
     b_bbox = badge_font.getbbox(badge_text)
     bw = b_bbox[2] - b_bbox[0]
     bh = b_bbox[3] - b_bbox[1]
@@ -492,7 +492,7 @@ def render_style_shock_revelation(
 
     # 1. Caution Warning Ribbon
     ribbon_font = get_font(size=44, prefer_impact=True)
-    ribbon_text = "⚠️ FAKTA TERBONGKAR!"
+    ribbon_text = ">> FAKTA TERBONGKAR! <<"
     rotated_ribbon, _ = render_tilted_ribbon(
         text=ribbon_text,
         font=ribbon_font,
@@ -544,7 +544,7 @@ def render_style_shock_revelation(
     # 3. Floating Viral Score Pill at bottom
     score_val = score if score > 0 else 88
     score_font = get_font(size=36, prefer_impact=True)
-    badge_label = f"⚡ SKOR VIRAL {score_val}/100 • POTENSI TINGGI"
+    badge_label = f"VIRAL SCORE: {score_val}/100 • POTENSI TINGGI"
     s_bbox = score_font.getbbox(badge_label)
     sw = s_bbox[2] - s_bbox[0]
     sh = s_bbox[3] - s_bbox[1]
