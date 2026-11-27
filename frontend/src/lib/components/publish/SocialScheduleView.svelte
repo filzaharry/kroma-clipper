@@ -61,12 +61,15 @@
 
   // Connected YouTube Account State (Focus on YouTube Shorts)
   let youtubeAccount = $state({
-    connected: true,
+    connected: false,
     email: 'ngobroldikit@gmail.com',
-    channelName: 'Ngobrol Dikit',
-    handle: '@ngobroldikit',
+    channelName: 'NgeTalk-123',
+    handle: '@NgeTalk-123',
     verified: true,
   });
+
+  // Modal panduan upload instan
+  let showUploadGuideModal = $state(false);
 
   const selectedClip = $derived.by(() => {
     if (selectedClipId) {
@@ -268,13 +271,9 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
 
   async function handlePublishOrSchedule() {
     if (!selectedClip) return;
-    isPublishing = true;
-    publishSuccessMsg = null;
 
-    try {
-      const isNow = publishMode === 'publish_now';
-      const scheduledTime = isNow ? new Date().toISOString() : new Date(scheduledDate).toISOString();
-
+    if (publishMode === 'schedule') {
+      const scheduledTime = new Date(scheduledDate).toISOString();
       const newPost: ScheduledPost = {
         id: `post-${Date.now()}`,
         clipId: selectedClip.id,
@@ -284,44 +283,20 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
         caption: descriptionInput,
         hashtags: tagsInput ? tagsInput.split(' ').filter(Boolean) : [],
         scheduledTime,
-        status: isNow ? 'published' : 'scheduled',
+        status: 'scheduled',
         aspectRatio: selectedClip.aspectRatio,
         durationSeconds: selectedClip.duration,
       };
 
-      // Panggil endpoint backend YouTube publish
-      const res = await fetch('/api/youtube/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clipId: selectedClip.id,
-          title: titleInput || selectedClip.title,
-          description: descriptionInput,
-          tags: tagsInput ? tagsInput.split(' ').filter(Boolean) : [],
-          privacy: privacyStatus,
-          scheduledTime,
-          email: youtubeAccount.email,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Gagal memproses publikasi YouTube');
-      }
-
       workspace.addScheduledPost(newPost);
-
-      if (isNow) {
-        publishSuccessMsg = `🎉 Klip berhasil dipublish ke YouTube Shorts akun ${youtubeAccount.email} (${privacyStatus.toUpperCase()})!`;
-      } else {
-        publishSuccessMsg = `📅 Klip berhasil dijadwalkan untuk diposting pada ${new Date(scheduledDate).toLocaleString('id-ID')} ke akun ${youtubeAccount.email}!`;
-      }
-    } catch (err: any) {
-      console.error('Publish error:', err);
-      alert('Gagal memproses publikasi: ' + err.message);
-    } finally {
-      isPublishing = false;
+      publishSuccessMsg = `📅 Klip berhasil disimpan ke jadwal posting (${new Date(scheduledDate).toLocaleString('id-ID')}) untuk akun ${youtubeAccount.email}!`;
+      return;
     }
+
+    // Jika publishMode === 'publish_now':
+    // Karena Google YouTube Data API memerlukan otorisasi OAuth 2.0 (bukan password email),
+    // kita tampilkan panduan aksi 1-klik untuk mengunduh video dan mengunggahnya ke channel NgeTalk-123 di YouTube Studio.
+    showUploadGuideModal = true;
   }
 </script>
 
@@ -705,15 +680,18 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
               <span class="text-xs font-bold text-[#E7E9EC]">Koneksi Akun YouTube</span>
             </div>
 
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40 font-bold">
-              TERHUBUNG
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#B6F36B]/20 text-[#B6F36B] border border-[#B6F36B]/40 font-bold">
+              SIAP UPLOAD KE CHANNEL
             </span>
           </div>
 
           <!-- Detail Akun YouTube -->
           <div class="flex items-start gap-3 p-3 rounded-lg bg-[#14171A] border border-[#292E34]">
-            <div class="w-10 h-10 rounded-full bg-[#FF0000] text-white font-bold flex items-center justify-center shrink-0 shadow-md">
-              ND
+            <div class="w-10 h-10 rounded-full bg-[#111315] border-2 border-[#10B981] text-[#10B981] font-bold flex items-center justify-center shrink-0 shadow-md">
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
             </div>
             <div class="min-w-0 flex-1">
               <div class="text-xs font-bold text-[#E7E9EC] truncate">
@@ -723,7 +701,7 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
                 {youtubeAccount.email}
               </div>
               <div class="text-[10px] text-[#626871] mt-0.5">
-                Channel Utama · YouTube Shorts Ready
+                Channel YouTube Terdaftar · Siap Upload
               </div>
             </div>
           </div>
@@ -1043,6 +1021,146 @@ Jangan lupa Like, Comment, dan Subscribe @ngobroldikit untuk update klip viral b
             </button>
           </div>
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- ========================================================================= -->
+<!-- MODAL PANDUAN LANGKAH UPLOAD KE YOUTUBE STUDIO CHANNEL NGETALK-123        -->
+<!-- ========================================================================= -->
+{#if showUploadGuideModal && selectedClip}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+    <div
+      class="w-full max-w-lg rounded-2xl bg-[#191C20] border border-[#292E34] shadow-[0_25px_60px_rgba(0,0,0,0.95)] overflow-hidden"
+    >
+      <!-- Modal Header -->
+      <div class="p-5 border-b border-[#292E34] flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-[#FF0000]/15 border border-[#FF0000]/30 flex items-center justify-center text-[#FF0000]">
+            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-bold text-[#E7E9EC]">Siap Upload ke Channel {youtubeAccount.channelName}</div>
+            <div class="text-[11px] text-[#9299A3]">Panduan Cepat Masuk ke YouTube Studio (30 Detik)</div>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick={() => (showUploadGuideModal = false)}
+          class="text-[#9299A3] hover:text-[#E7E9EC] p-1 rounded-lg hover:bg-[#20242A] transition-colors cursor-pointer text-xs"
+        >
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 space-y-4 text-xs">
+        <div class="p-3.5 rounded-xl bg-[#201815] border border-[#F59E0B]/40 text-[#E7E9EC] leading-relaxed space-y-1.5">
+          <div class="font-bold text-[#F59E0B] flex items-center gap-1.5 text-xs">
+            <AlertCircle class="w-4 h-4 shrink-0" />
+            <span>Kenapa belum otomatis masuk ke YouTube Studio?</span>
+          </div>
+          <p class="text-[11px] text-[#9299A3]">
+            Google YouTube <strong>melarang keras</strong> pengiriman video otomatis hanya dengan membaca password teks biasa (kebijakan keamanan akun Google). Kroma Clipper telah menyiapkan video MP4 & seluruh metadata lengkap agar Anda tinggal upload dalam 3 langkah mudah:
+          </p>
+        </div>
+
+        <!-- 3 Langkah Upload Instan -->
+        <div class="space-y-3 pt-1">
+          <!-- Langkah 1 -->
+          <div class="p-3.5 rounded-xl bg-[#14171A] border border-[#292E34] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-7 h-7 rounded-full bg-[#B6F36B] text-[#111315] font-black text-xs flex items-center justify-center shrink-0">
+                1
+              </div>
+              <div class="min-w-0">
+                <div class="font-bold text-[#E7E9EC]">Unduh Video MP4</div>
+                <div class="text-[11px] text-[#9299A3] truncate">Format 9:16 vertikal + subtitle kata-per-kata</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onclick={() => {
+                showUploadGuideModal = false;
+                openExportModal();
+              }}
+              class="h-8 px-3 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] text-[#111315] font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-sm"
+            >
+              <Download class="w-3.5 h-3.5" />
+              <span>Unduh MP4</span>
+            </button>
+          </div>
+
+          <!-- Langkah 2 -->
+          <div class="p-3.5 rounded-xl bg-[#14171A] border border-[#292E34] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-7 h-7 rounded-full bg-[#B6F36B] text-[#111315] font-black text-xs flex items-center justify-center shrink-0">
+                2
+              </div>
+              <div class="min-w-0">
+                <div class="font-bold text-[#E7E9EC]">Salin Judul & Deskripsi</div>
+                <div class="text-[11px] text-[#9299A3] truncate">Judul hook viral, rangkuman, dan tags otomatis</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onclick={copyAllMetadata}
+              class="h-8 px-3 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] border border-[#292E34] font-semibold text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-sm"
+            >
+              {#if copiedAll}
+                <Check class="w-3.5 h-3.5 text-[#B6F36B]" />
+                <span class="text-[#B6F36B]">Tersalin!</span>
+              {:else}
+                <Copy class="w-3.5 h-3.5" />
+                <span>Salin Info</span>
+              {/if}
+            </button>
+          </div>
+
+          <!-- Langkah 3 -->
+          <div class="p-3.5 rounded-xl bg-[#14171A] border border-[#292E34] flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-7 h-7 rounded-full bg-[#B6F36B] text-[#111315] font-black text-xs flex items-center justify-center shrink-0">
+                3
+              </div>
+              <div class="min-w-0">
+                <div class="font-bold text-[#E7E9EC]">Buka YouTube Studio Upload</div>
+                <div class="text-[11px] text-[#9299A3] truncate">Drag & drop video MP4 yang diunduh ke YouTube</div>
+              </div>
+            </div>
+
+            <a
+              href="https://studio.youtube.com/channel/upload"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="h-8 px-3 rounded-lg bg-[#FF0000] hover:bg-[#CC0000] text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors shadow-sm"
+            >
+              <span>Buka Studio</span>
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 bg-[#14171A] border-t border-[#292E34] flex items-center justify-between text-xs">
+        <span class="text-[11px] text-[#626871]">
+          Channel: <strong class="text-[#E7E9EC]">{youtubeAccount.channelName}</strong> ({youtubeAccount.email})
+        </span>
+
+        <button
+          type="button"
+          onclick={() => (showUploadGuideModal = false)}
+          class="px-4 py-1.5 rounded-lg bg-[#20242A] hover:bg-[#282E36] text-[#E7E9EC] font-semibold text-xs transition-colors cursor-pointer"
+        >
+          Tutup
+        </button>
       </div>
     </div>
   </div>
