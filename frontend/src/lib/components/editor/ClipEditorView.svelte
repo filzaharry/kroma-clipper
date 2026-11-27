@@ -36,6 +36,7 @@
     AlertCircle,
     X,
     Film,
+    ArrowRight,
   } from 'lucide-svelte';
 
   let { clip }: { clip: ClipCandidate } = $props();
@@ -168,9 +169,9 @@
     });
   }
 
-  function handleSchedule() {
+  function handleNext() {
     workspace.selectClip(clip);
-    goto('/publish');
+    goto(`/publish?clipId=${clip.id}`);
   }
 
   function handleExport() {
@@ -465,26 +466,16 @@
       </button>
     </div>
 
-    <!-- Direct Action Buttons: Unduh Klip Langsung (MP4) -->
+    <!-- Direct Action Button: Selanjutnya (Ke Halaman Rekomendasi & Publikasi YouTube Shorts) -->
     <div class="flex items-center gap-2">
       <button
         type="button"
-        onclick={handleSchedule}
-        class="h-8 px-2.5 rounded-lg bg-[#191C20] hover:bg-[#20242A] text-[#9299A3] hover:text-[#E7E9EC] border border-[#292E34] transition-colors flex items-center gap-1.5 cursor-pointer text-xs"
-      >
-        <Calendar class="w-3.5 h-3.5" />
-        <span class="hidden md:inline">Jadwalkan</span>
-      </button>
-
-      <!-- TOMBOL UNDUH LANGSUNG (MP4) DENGAN MODAL OPSI EKSPOR -->
-      <button
-        type="button"
-        onclick={openExportModal}
+        onclick={handleNext}
         class="h-8 px-4 rounded-lg bg-[#B6F36B] hover:bg-[#A5E456] active:bg-[#94D445] text-[#111315] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B6F36B]/50 shrink-0"
-        title="Buka opsi resolusi ekspor, FPS, dan bitrate untuk download video MP4"
+        title="Lanjut ke halaman rekomendasi thumbnail, judul, deskripsi & publikasi YouTube Shorts"
       >
-        <Download class="w-3.5 h-3.5 stroke-[2.5]" />
-        <span>⬇️ Unduh Video Ini (MP4)</span>
+        <span>Selanjutnya</span>
+        <ArrowRight class="w-3.5 h-3.5 stroke-[2.5]" />
       </button>
     </div>
   </div>
